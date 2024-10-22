@@ -1,2 +1,7 @@
-program = { inheritance }
-inheritance = { "extends"  }
+program = { (function ~ NEWLINE*)* }
+function = { "func" ~ whitespace ~ identifier ~ "()" ~ ":" ~ function_body }
+function_body = { (NEWLINE ~ identacion ~ statement)+ }
+identacion = { "    " }
+identifier = { ASCII_ALPHA ~ ASCII_ALPHANUMERIC* ~ !ASCII_ALPHANUMERIC }
+statement = { "pass" }
+whitespace = _{ " "+ }
