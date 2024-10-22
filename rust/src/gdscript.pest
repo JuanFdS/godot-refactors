@@ -1,7 +1,8 @@
-program = { (function ~ NEWLINE*)* }
+program = { (empty_line* ~ function ~ NEWLINE? ~ empty_line*)* }
 function = { "func" ~ whitespace ~ identifier ~ "()" ~ ":" ~ function_body }
 function_body = { (NEWLINE ~ identacion ~ statement)+ }
-identacion = { "    " }
+empty_line = { NEWLINE }
+identacion = { "    " | "\t" }
 identifier = { ASCII_ALPHA ~ ASCII_ALPHANUMERIC* ~ !ASCII_ALPHANUMERIC }
 statement = { "pass" }
 whitespace = _{ " "+ }

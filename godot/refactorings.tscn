@@ -1,10 +1,11 @@
-[gd_scene load_steps=3 format=3 uid="uid://bv0pa7axrrrn5"]
+[gd_scene load_steps=2 format=3 uid="uid://bv0pa7axrrrn5"]
 
 [ext_resource type="Script" path="res://refactorings.gd" id="1_hn4i6"]
-[ext_resource type="Script" path="res://character_body_2d.gd" id="2_n5a42"]
 
-[node name="Refactorings" type="Node"]
+[node name="Refactorings" type="Control"]
+layout_mode = 3
+anchors_preset = 0
+mouse_filter = 2
 script = ExtResource("1_hn4i6")
 
-[node name="CharacterBody2D" type="CharacterBody2D" parent="."]
-script = ExtResource("2_n5a42")
+[node name="MiParser" type="MiParser" parent="."]

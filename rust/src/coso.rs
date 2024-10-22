@@ -55,7 +55,8 @@ impl GDScriptParser {
                     .filter_map(Self::to_statement)
                     .collect();
                 Declaration::Function(function_name, function_body)
-            }
+            },
+            Rule::empty_line => Declaration::EmptyLine,
             _ => panic!(),
         }
     }
@@ -112,13 +113,14 @@ impl Program<'_> {
 pub enum Declaration<'a> {
     // Function(nombre, )
     Function(&'a str, Vec<Statement>),
+    EmptyLine,
 }
 
 impl Declaration<'_> {
     fn as_str(&self) -> String {
         match self {
             Declaration::Function(name, statements) => {
-                let identation = "    ";
+                let identation = "\t";
                 let function_body = statements
                     .iter()
                     .cloned()
@@ -131,6 +133,7 @@ impl Declaration<'_> {
                     body = function_body
                 )
             }
+            Declaration::EmptyLine => "".to_string(),
         }
     }
 }
@@ -183,12 +186,22 @@ mod tests {
     }
 
     #[test]
+    fn tabs_are_valid_identation() {
+        assert_parse_eq(
+            "func foo():\n\tpass",
+            Program { declarations: vec![Declaration::Function("foo", vec![Statement::Pass])] },
+        );
+    }
+
+    #[test]
     fn test_function_to_string() {
         assert_eq!(
             Declaration::Function("foo", vec![Statement::Pass]).as_str(),
-            "func foo():\n    pass"
+            "func foo():\n\tpass"
         )
     }
+
+    
 
     #[test]
     fn program_to_string() {
@@ -199,7 +212,21 @@ mod tests {
                     Declaration::Function("bar", vec![Statement::Pass])
                 ]
             }.as_str(),
-            "func foo():\n    pass\nfunc bar():\n    pass"
+            "func foo():\n\tpass\nfunc bar():\n\tpass"
+        )
+    }
+
+    #[test]
+    fn program_with_newline_to_string() {
+        assert_eq!(
+            Program { declarations: 
+                vec![
+                    Declaration::EmptyLine,
+                    Declaration::Function("foo", vec![Statement::Pass]),
+                    Declaration::Function("bar", vec![Statement::Pass])
+                ]
+            }.as_str(),
+            "\nfunc foo():\n\tpass\nfunc bar():\n\tpass"
         )
     }
 
@@ -234,17 +261,47 @@ mod tests {
     }
 
     #[test]
-    fn move_function_up_changes_the_code_so_the_declaration_goes_up() {
+    fn move_function_down_when_there_is_an_empty_line_between_functions_moves_the_function_into_the_empty_line() {
+        let foo = || Declaration::Function("foo", vec![Statement::Pass]);
+        let bar = || Declaration::Function("bar", vec![Statement::Pass]);
+        assert_eq!(
+            Program { declarations: vec![foo(), Declaration::EmptyLine, bar()] }.move_declaration_down(foo()),
+            Program { declarations: vec![Declaration::EmptyLine, foo(), bar()] }
+        )
+    }
+
+    #[test]
+    fn move_function_down_changes_the_code_so_the_declaration_goes_down() {
         let program = GDScriptParser::parse_to_program("func foo():\n    pass\nfunc bar():\n    pass");
 
-        let foo_function = GDScriptParser::parse_to_declaration("func foo():\n    pass");
+        let foo_function = || GDScriptParser::parse_to_declaration("func foo():\n    pass");
 
-        let refactored_program = program.move_declaration_down(foo_function);
+        let refactored_program = program.move_declaration_down(foo_function());
 
         assert_eq!(
             refactored_program.as_str(),
-            "func bar():\n    pass\nfunc foo():\n    pass"
+            "func bar():\n\tpass\nfunc foo():\n\tpass"
         )
+    }
 
+    #[test]
+    fn moving_function_around_when_there_are_multiple_empty_lines() {
+        let program = GDScriptParser::parse_to_program(
+            "func foo():\n\tpass\n\nfunc bar():\n\tpass"
+        );
+
+        let foo_function = || GDScriptParser::parse_to_declaration("func foo():\n\tpass");
+
+        let program_with_foo_one_time_down = program.move_declaration_down(foo_function());
+        assert_eq!(
+            program_with_foo_one_time_down.as_str(),
+            "\nfunc foo():\n\tpass\nfunc bar():\n\tpass"
+        );
+
+        let program_with_foo_two_times_down = program_with_foo_one_time_down.move_declaration_down(foo_function());
+        assert_eq!(
+            program_with_foo_two_times_down.as_str(),
+            "\nfunc bar():\n\tpass\nfunc foo():\n\tpass"
+        )
     }
 }

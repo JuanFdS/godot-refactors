@@ -27,6 +27,7 @@ impl MiParser {
 
         let refactored_program = program.move_declaration_down(function);
 
+
         GString::from(refactored_program.as_str())
     }
     #[func]
