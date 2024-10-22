@@ -1,7 +1,5 @@
-// use godot::prelude::*;
-// use godot::classes::Sprite2D;
-// use godot::classes::ISprite2D;
-// use pest::Parser;
+use coso::GDScriptParser;
+use godot::prelude::*;
 use pest_derive::Parser;
 mod coso;
 
@@ -11,41 +9,34 @@ pub struct CSVParser;
 
 struct MyExtension;
 
-// #[gdextension]
-// unsafe impl ExtensionLibrary for MyExtension {}
+#[gdextension]
+unsafe impl ExtensionLibrary for MyExtension {}
 
-// #[derive(GodotClass)]
-// #[class(tool, base=Sprite2D)]
-// struct Player {
-//     speed: f64,
-//     angular_speed: f64,
+#[derive(GodotClass)]
+#[class(tool, init, base=Node)]
+struct MiParser {
 
-//     base: Base<Sprite2D>
-// }
+}
 
-// #[godot_api]
-// impl Player {   
-//     #[func]
-//     fn parsear(&self, s: String) -> GString {
-//         let successful_parse = CSVParser::parse(Rule::field, &s);
+#[godot_api]
+impl MiParser {   
+    #[func]
+    fn bajar(&self, texto_seleccionado: String, todo_el_archivo: String) -> GString {
+        let program = GDScriptParser::parse_to_program(&todo_el_archivo);
+        let function = GDScriptParser::parse_to_declaration(&texto_seleccionado);
 
-//         let coso = format!("{:?}", successful_parse);
+        let refactored_program = program.move_declaration_down(function);
 
-//         GString::from(coso)
-//     }
-// }
+        GString::from(refactored_program.as_str())
+    }
+    #[func]
+    fn subir(&self, texto_seleccionado: String, todo_el_archivo: String) -> GString {
+        let program = GDScriptParser::parse_to_program(&todo_el_archivo);
+        let function = GDScriptParser::parse_to_declaration(&texto_seleccionado);
 
-// #[godot_api]
-// impl ISprite2D for Player {
-//     fn init(base: Base<Sprite2D>) -> Self {
-//         let successful_parse = CSVParser::parse(Rule::field, "-273.15");
+        let refactored_program = program.move_declaration_up(function);
 
-//         godot_print!("{:?}", successful_parse); // Prints to the Godot console
-        
-//         Self {
-//             speed: 400.0,
-//             angular_speed: std::f64::consts::PI,
-//             base,
-//         }
-//     }
-// }
+        GString::from(refactored_program.as_str())
+    }
+}
+

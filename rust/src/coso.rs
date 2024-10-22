@@ -17,15 +17,15 @@ impl GDScriptParser {
         rule_mapper(parse_result)
     }
 
-    fn parse_to_program<'a>(input: &'a str) -> Program {
+    pub fn parse_to_program<'a>(input: &'a str) -> Program {
         Self::parse_to_ast(input, Rule::program, Self::to_program)
     }
 
-    fn parse_to_declaration<'a>(input: &'a str) -> Declaration {
+    pub fn parse_to_declaration<'a>(input: &'a str) -> Declaration {
         Self::parse_to_ast(input, Rule::function, Self::to_declaration)
     }
 
-    fn parse_to_statement<'a>(input: &'a str) -> Statement {
+    pub fn parse_to_statement<'a>(input: &'a str) -> Statement {
         let to_statement = |x| Self::to_statement(x).unwrap();
         Self::parse_to_ast(input, Rule::statement,  to_statement)
     }
@@ -69,12 +69,12 @@ impl GDScriptParser {
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]
-struct Program<'a> {
+pub struct Program<'a> {
     declarations: Vec<Declaration<'a>>,
 }
 
 impl Program<'_> {
-    fn as_str(&self) -> String {
+    pub fn as_str(&self) -> String {
         self.declarations
             .iter()
             .cloned()
@@ -83,7 +83,7 @@ impl Program<'_> {
             .join("\n")
     }
 
-    fn move_declaration_down(&self, declaration: Declaration) -> Program {
+    pub fn move_declaration_down(&self, declaration: Declaration) -> Program {
         let maybe_idx = self.declarations.iter().position(|x| *x == declaration).filter(|idx| (idx + 1) < self.declarations.len());
         match maybe_idx {
             Some(idx) => {
@@ -95,7 +95,7 @@ impl Program<'_> {
         }
     }
 
-    fn move_declaration_up(&self, declaration: Declaration) -> Program {
+    pub fn move_declaration_up(&self, declaration: Declaration) -> Program {
         let maybe_idx = self.declarations.iter().position(|x| *x == declaration).filter(|idx| *idx > 0);
         match maybe_idx {
             Some(idx) => {
@@ -109,7 +109,7 @@ impl Program<'_> {
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
-enum Declaration<'a> {
+pub enum Declaration<'a> {
     // Function(nombre, )
     Function(&'a str, Vec<Statement>),
 }
