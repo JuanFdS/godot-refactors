@@ -22,12 +22,20 @@ impl GDScriptParser {
     }
 
     pub fn parse_to_declaration<'a>(input: &'a str) -> Declaration {
-        Self::parse_to_ast(input, Rule::function, Self::to_declaration)
+        Self::parse_to_ast(input, Rule::declaration, Self::to_declaration)
     }
 
     pub fn parse_to_statement<'a>(input: &'a str) -> Statement {
         let to_statement = |x| Self::to_statement(x).unwrap();
         Self::parse_to_ast(input, Rule::statement,  to_statement)
+    }
+
+    fn to_annotation(parse_result: Pair<Rule>) -> Annotation {
+        match parse_result.into_inner().next().unwrap().as_rule() {
+            Rule::export => Annotation::Export,
+            Rule::onready => Annotation::OnReady,
+            _ => panic!()
+        }
     }
 
     fn to_program(parse_result: Pair<Rule>) -> Program {
@@ -57,6 +65,19 @@ impl GDScriptParser {
                 Declaration::Function(function_name, function_body)
             },
             Rule::empty_line => Declaration::EmptyLine,
+            Rule::var_declaration => {
+                let mut inner_rules = parse_result.into_inner();
+                // inner_rules.find CONSUMES!!!
+                let annotation = inner_rules.clone().find(|p| p.as_rule() == Rule::annotation);
+                let identifier = inner_rules.find(|p| p.as_rule() == Rule::identifier).unwrap();
+                let expression = inner_rules.find(|p| p.as_rule() == Rule::expression).unwrap();
+                Declaration::Var(
+                    identifier.as_span().as_str(),
+                    expression.as_span().as_str(),
+                    annotation.map(|pair| Self::to_annotation(pair))
+            )
+            }
+            Rule::declaration => Self::to_declaration(parse_result.into_inner().next().unwrap()),
             _ => panic!(),
         }
     }
@@ -111,13 +132,30 @@ impl Program<'_> {
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub enum Declaration<'a> {
-    // Function(nombre, )
+    // Function(nombre, statements)
     Function(&'a str, Vec<Statement>),
     EmptyLine,
+    // Var(identifier, value, anotation)
+    Var(&'a str, &'a str, Option<Annotation>)
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub enum Annotation {
+    Export,
+    OnReady
+}
+
+impl Annotation {
+    pub fn as_str(&self) -> String {
+        match self {
+            Annotation::Export => "@export".to_string(),
+            Annotation::OnReady => "@onready".to_string(),
+        }
+    }
 }
 
 impl Declaration<'_> {
-    fn as_str(&self) -> String {
+    pub fn as_str(&self) -> String {
         match self {
             Declaration::Function(name, statements) => {
                 let identation = "\t";
@@ -134,9 +172,22 @@ impl Declaration<'_> {
                 )
             }
             Declaration::EmptyLine => "".to_string(),
+            Declaration::Var(identifier, value, annotation) =>
+                format!("{annotation}var {identifier} = {value}", identifier=identifier, value=value,annotation=annotation.clone().map(|x| x.as_str() + " ").unwrap_or("".to_string())),
+        }
+    }
+
+    pub fn toggle_annotation(&self, annotation: Annotation) -> Declaration {
+        match self {
+            Declaration::Var(identifier, value, Some(previousAnnotation))
+                if *previousAnnotation == annotation => Declaration::Var(identifier, value, None),
+            Declaration::Var(identifier, value, _) =>
+                Declaration::Var(identifier, value, Some(annotation)),
+            _ => self.clone()
         }
     }
 }
+
 
 #[derive(Debug, Eq, PartialEq, Clone, Copy)]
 enum Statement {
@@ -302,6 +353,47 @@ mod tests {
         assert_eq!(
             program_with_foo_two_times_down.as_str(),
             "\nfunc bar():\n\tpass\nfunc foo():\n\tpass"
+        )
+    }
+
+    #[test]
+    fn variable_declaration_parses() {
+        assert_parse_eq(
+            "var x = 2",
+            Program { declarations: vec![Declaration::Var("x","2",None)] }
+        )
+    }
+
+    #[test]
+    fn variable_declaration_parses_even_with_annotations() {
+        assert_parse_eq(
+            "@export var x = 2",
+            Program { declarations: vec![Declaration::Var("x","2",Some(Annotation::Export))] }
+        )
+    }
+
+    #[test]
+    fn toggle_export_annotation_adds_export_if_var_declaration_doesnt_has_it() {
+        assert_eq!(
+            Declaration::Var("x","2",None).toggle_annotation(Annotation::Export),
+            Declaration::Var("x","2",Some(Annotation::Export))
+        )
+    }
+
+    #[test]
+    fn toggle_export_annotation_changes_annotation_to_export_if_it_is_a_different_one() {
+        assert_eq!(
+            Declaration::Var("x","2",Some(Annotation::OnReady)).toggle_annotation(Annotation::Export),
+            Declaration::Var("x","2",Some(Annotation::Export))
+        )
+    }
+
+    
+    #[test]
+    fn toggle_export_annotation_removes_annotation_if_it_has_export() {
+        assert_eq!(
+            Declaration::Var("x","2",Some(Annotation::Export)).toggle_annotation(Annotation::Export),
+            Declaration::Var("x","2",None)
         )
     }
 }
