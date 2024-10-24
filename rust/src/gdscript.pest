@@ -1,4 +1,10 @@
-program = { (empty_line* ~ declaration ~ NEWLINE? ~ empty_line*)* }
+program = {
+    (tool_annotation ~ NEWLINE)? ~
+    (inheritance ~ NEWLINE)? ~
+    (empty_line* ~ declaration ~ NEWLINE? ~ empty_line*)*
+}
+inheritance = { "extends" ~ whitespace ~ identifier }
+tool_annotation = { "@tool" }
 declaration = { function | var_declaration }
 var_declaration = { (annotation ~ whitespace)? ~ "var" ~ whitespace ~ identifier ~ whitespace ~ "=" ~ whitespace ~ expression }
 annotation = { "@" ~ (export | onready) }
@@ -9,6 +15,6 @@ function = { "func" ~ whitespace ~ identifier ~ "()" ~ ":" ~ function_body }
 function_body = { (NEWLINE ~ identacion ~ statement)+ }
 empty_line = { NEWLINE }
 identacion = { "    " | "\t" }
-identifier = { ASCII_ALPHA ~ ASCII_ALPHANUMERIC* ~ !ASCII_ALPHANUMERIC }
+identifier = { "_"* ~ ASCII_ALPHA ~ ASCII_ALPHANUMERIC* ~ !ASCII_ALPHANUMERIC }
 statement = { "pass" }
 whitespace = _{ " "+ }

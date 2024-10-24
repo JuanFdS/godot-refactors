@@ -1,12 +1,6 @@
 use coso::{Annotation, GDScriptParser};
 mod coso;
-use godot::{classes::GDScript, prelude::*};
-use pest_derive::Parser;
-
-
-#[derive(Parser)]
-#[grammar = "csv.pest"]
-pub struct CSVParser;
+use godot::prelude::*;
 
 struct MyExtension;
 
