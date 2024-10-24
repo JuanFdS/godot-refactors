@@ -1,0 +1,8 @@
+[gd_scene load_steps=2 format=3 uid="uid://7j1pbonk5kbf"]
+
+[ext_resource type="Script" path="res://pruebita.gd" id="1_wkjum"]
+
+[node name="Node2D" type="Node2D"]
+script = ExtResource("1_wkjum")
+
+[node name="Node" type="Node" parent="."]

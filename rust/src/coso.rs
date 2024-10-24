@@ -55,6 +55,7 @@ impl GDScriptParser {
     fn is_rule(expected_rule: Rule) -> impl Fn(Pair<Rule>) -> bool {
         move |pair: Pair<Rule>| pair.as_rule() == expected_rule
     }
+    
 
     fn to_program(parse_result: Pair<Rule>) -> Program {
         match parse_result.as_rule() {
@@ -88,13 +89,29 @@ impl GDScriptParser {
             Rule::function => {
                 let mut inner_rules = parse_result.into_inner();
                 let function_name = inner_rules.next().unwrap().as_span().as_str();
-                let function_body = inner_rules
-                    .next()
-                    .unwrap()
+                let mut next_match = inner_rules.next().unwrap();
+                let parameters: Vec<Parameter<'_>>;
+                if next_match.as_rule() == Rule::param_list {
+                    parameters = next_match.into_inner()
+                              .filter(|pair| pair.as_rule() == Rule::parameter)
+                              .map(|pair| Parameter { name: pair.as_span().as_str() })
+                              .collect();
+                    next_match = inner_rules.next().unwrap();
+                } else {
+                    parameters = vec![];
+                }
+                let return_type ;
+                if next_match.as_rule() == Rule::function_return_type {
+                    return_type = Some(next_match.into_inner().last().unwrap().as_span().as_str().to_string());
+                    next_match = inner_rules.next().unwrap();
+                } else {
+                    return_type = None;
+                }
+                let function_body = next_match
                     .into_inner()
                     .filter_map(Self::to_statement)
                     .collect();
-                Declaration::Function(function_name, function_body)
+                Declaration::Function(function_name, return_type, parameters, function_body)
             },
             Rule::empty_line => Declaration::EmptyLine,
             Rule::var_declaration => {
@@ -120,7 +137,9 @@ impl GDScriptParser {
 
     fn to_statement(parse_result: Pair<Rule>) -> Option<Statement> {
         match parse_result.as_rule() {
-            Rule::statement => Some(Statement::Pass),
+            Rule::unknown => Some(Statement::Unknown(parse_result.as_span().as_str().to_owned())),
+            Rule::pass => Some(Statement::Pass),
+            Rule::statement => Self::to_statement(parse_result.into_inner().next().unwrap()),
             _ => None,
         }
     }
@@ -197,7 +216,7 @@ impl<'a> Program<'a> {
     
     pub fn toggle_tool_button(&self, function: Declaration<'a>) -> Program<'a> {
         match function {
-            Declaration::Function(name, _) => {
+            Declaration::Function(name, _, _, _) => {
                 let mut declarations: Vec<Declaration<'a>> = self.declarations.clone();
                 let maybe_idx: Option<usize> = declarations.iter().position(
                     |declaration| *declaration == function
@@ -238,12 +257,17 @@ impl<'a> Program<'a> {
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub enum Declaration<'a> {
-    // Function(nombre, statements)
-    Function(&'a str, Vec<Statement>),
+    // Function(nombre, type, parametros, statements)
+    Function(&'a str, Option<String>, Vec<Parameter<'a>>, Vec<Statement>),
     EmptyLine,
     // Var(identifier, value, anotation)
     Var(String, &'a str, Option<Annotation<'a>>),
     Unknown(&'a str)
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct Parameter<'a> {
+    name: &'a str
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -267,8 +291,16 @@ impl Annotation<'_> {
 impl<'a> Declaration<'a> {
     pub fn as_str(&self) -> String {
         match self {
-            Declaration::Function(name, statements) => {
+            Declaration::Function(name, return_type, parameters, statements) => {
                 let identation = "\t";
+                let param_list = parameters
+                    .iter()
+                    .cloned()
+                    .map(|param| param.name)
+                    .collect::<Vec<&str>>()
+                    .join(", ");
+                let function_return_type: String =
+                    return_type.clone().map_or_else(|| "".to_string(), |a_type| format!(" -> {}", a_type));
                 let function_body = statements
                     .iter()
                     .cloned()
@@ -276,7 +308,7 @@ impl<'a> Declaration<'a> {
                     .collect::<Vec<String>>()
                     .join("\n");
                 format!(
-                    "func {fn_name}():\n{body}",
+                    "func {fn_name}({param_list}){function_return_type}:\n{body}",
                     fn_name = name,
                     body = function_body
                 )
@@ -301,15 +333,17 @@ impl<'a> Declaration<'a> {
 }
 
 
-#[derive(Debug, Eq, PartialEq, Clone, Copy)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub enum Statement {
     Pass,
+    Unknown(String)
 }
 
 impl Statement {
     fn as_str(&self) -> String {
-        match *self {
+        match self {
             Statement::Pass => "pass".to_string(),
+            Statement::Unknown(string) => string.to_string(),
         }
     }
 }
@@ -343,7 +377,7 @@ mod tests {
             Program {
                 is_tool: false,
                 super_class: None,
-                declarations: vec![Declaration::Function("foo", vec![Statement::Pass])]
+                declarations: vec![Declaration::Function("foo", None, vec![], vec![Statement::Pass])]
             },
         );
     }
@@ -356,8 +390,8 @@ mod tests {
                 is_tool: false,
                 super_class: None,
                 declarations: vec![
-                    Declaration::Function("foo", vec![Statement::Pass]),
-                    Declaration::Function("bar", vec![Statement::Pass]),
+                    Declaration::Function("foo", None, vec![], vec![Statement::Pass]),
+                    Declaration::Function("bar", None, vec![], vec![Statement::Pass]),
                 ],
             },
         );
@@ -372,10 +406,10 @@ mod tests {
                 super_class: None,
                 declarations: vec![
                     Declaration::Function(
-                        "foo", vec![Statement::Pass]),
+                        "foo", None, vec![], vec![Statement::Pass]),
                     Declaration::EmptyLine,
                     Declaration::Function(
-                        "bar", vec![Statement::Pass]),
+                        "bar", None, vec![], vec![Statement::Pass]),
                 ]
             })
     }
@@ -387,7 +421,7 @@ mod tests {
             Program {
                 is_tool: false,
                 super_class: None,
-                declarations: vec![Declaration::Function("foo", vec![Statement::Pass])]
+                declarations: vec![Declaration::Function("foo", None, vec![], vec![Statement::Pass])]
             },
         );
     }
@@ -395,7 +429,7 @@ mod tests {
     #[test]
     fn test_function_to_string() {
         assert_eq!(
-            Declaration::Function("foo", vec![Statement::Pass]).as_str(),
+            Declaration::Function("foo", None, vec![], vec![Statement::Pass]).as_str(),
             "func foo():\n\tpass"
         )
     }
@@ -410,8 +444,8 @@ mod tests {
                 super_class: None,
                 declarations: 
                     vec![
-                        Declaration::Function("foo", vec![Statement::Pass]),
-                        Declaration::Function("bar", vec![Statement::Pass])
+                        Declaration::Function("foo", None, vec![], vec![Statement::Pass]),
+                        Declaration::Function("bar", None, vec![], vec![Statement::Pass])
                     ]
             }.as_str(),
             "func foo():\n\tpass\nfunc bar():\n\tpass\n"
@@ -427,8 +461,8 @@ mod tests {
                 declarations: 
                 vec![
                     Declaration::EmptyLine,
-                    Declaration::Function("foo", vec![Statement::Pass]),
-                    Declaration::Function("bar", vec![Statement::Pass])
+                    Declaration::Function("foo", None, vec![], vec![Statement::Pass]),
+                    Declaration::Function("bar", None, vec![], vec![Statement::Pass])
                 ]
             }.as_str(),
             "\nfunc foo():\n\tpass\nfunc bar():\n\tpass\n"
@@ -437,8 +471,8 @@ mod tests {
 
     #[test]
     fn move_function_down() {
-        let foo = Declaration::Function("foo", vec![Statement::Pass]);
-        let bar = Declaration::Function("bar", vec![Statement::Pass]);
+        let foo = Declaration::Function("foo", None, vec![], vec![Statement::Pass]);
+        let bar = Declaration::Function("bar", None, vec![], vec![Statement::Pass]);
         assert_eq!(
             Program {
                 is_tool: false,
@@ -453,8 +487,8 @@ mod tests {
 
     #[test]
     fn move_function_down_when_it_is_the_last_function_adds_a_newline_before_it() {
-        let foo = Declaration::Function("foo", vec![Statement::Pass]);
-        let bar = Declaration::Function("bar", vec![Statement::Pass]);
+        let foo = Declaration::Function("foo", None, vec![], vec![Statement::Pass]);
+        let bar = Declaration::Function("bar", None, vec![], vec![Statement::Pass]);
         assert_eq!(
             Program {
                 is_tool: false,
@@ -470,8 +504,8 @@ mod tests {
 
     #[test]
     fn move_function_up_when_it_is_the_first_function_leaves_the_program_as_it_is() {
-        let foo = Declaration::Function("foo", vec![Statement::Pass]);
-        let bar = Declaration::Function("bar", vec![Statement::Pass]);
+        let foo = Declaration::Function("foo", None, vec![], vec![Statement::Pass]);
+        let bar = Declaration::Function("bar", None, vec![], vec![Statement::Pass]);
         assert_eq!(
             Program {
                 is_tool: false,
@@ -488,8 +522,8 @@ mod tests {
 
     #[test]
     fn move_function_down_when_there_is_an_empty_line_between_functions_moves_the_function_into_the_empty_line() {
-        let foo = || Declaration::Function("foo", vec![Statement::Pass]);
-        let bar = || Declaration::Function("bar", vec![Statement::Pass]);
+        let foo = || Declaration::Function("foo", None, vec![], vec![Statement::Pass]);
+        let bar = || Declaration::Function("bar", None, vec![], vec![Statement::Pass]);
         assert_eq!(
             Program {
                 is_tool: false,
@@ -612,7 +646,7 @@ mod tests {
                 super_class: None,
                 declarations:
                     vec![
-                        Declaration::Function("foo",vec![Statement::Pass])
+                        Declaration::Function("foo", None, vec![], vec![Statement::Pass])
                         ]
             },
         )
@@ -626,7 +660,7 @@ mod tests {
                 super_class: None,
                 declarations:
                     vec![
-                        Declaration::Function("foo",vec![Statement::Pass])
+                        Declaration::Function("foo", None, vec![], vec![Statement::Pass])
                         ]
             }.as_str(),
             "@tool\nfunc foo():\n\tpass\n"
@@ -672,7 +706,7 @@ mod tests {
             Program {
                 is_tool: true,
                 super_class: Some("Node2D".to_owned()),
-                declarations: vec![Declaration::Function("foo", vec![Statement::Pass])]
+                declarations: vec![Declaration::Function("foo", None, vec![], vec![Statement::Pass])]
             });
     }
 
@@ -681,7 +715,7 @@ mod tests {
         let program_code = Program {
             is_tool: true,
             super_class: Some("Node2D".to_owned()),
-            declarations: vec![Declaration::Function("foo", vec![Statement::Pass])]
+            declarations: vec![Declaration::Function("foo", None, vec![], vec![Statement::Pass])]
         }.as_str();
 
         assert_eq!(
@@ -710,7 +744,7 @@ mod tests {
                         "foo",
                         Some(Annotation::ExportToolButton("Bleh"))
                     ),
-                    Declaration::Function("foo", vec![Statement::Pass])
+                    Declaration::Function("foo", None, vec![],  vec![Statement::Pass])
                 ]
             }
         );
@@ -722,11 +756,13 @@ mod tests {
                 is_tool: true,
                 super_class: Some("Node".to_owned()),
                 declarations: vec![
-                    Declaration::Function("foo", vec![Statement::Pass])
+                    Declaration::Function("foo", None, vec![], vec![Statement::Pass])
                 ]
             };
 
-        let refactored_program = program.toggle_tool_button(Declaration::Function("foo", vec![Statement::Pass]));
+        let refactored_program = program.toggle_tool_button(
+            Declaration::Function("foo", None, vec![], vec![Statement::Pass])
+        );
 
         assert_eq!(
             refactored_program,
@@ -735,7 +771,7 @@ mod tests {
                 super_class: Some("Node".to_owned()),
                 declarations: vec![
                     Declaration::Var("_foo".to_string(),"foo",Some(Annotation::ExportToolButton("foo"))),
-                    Declaration::Function("foo", vec![Statement::Pass])
+                    Declaration::Function("foo", None, vec![], vec![Statement::Pass])
                 ]
             });
     }
@@ -764,12 +800,12 @@ mod tests {
             super_class: Some("Node".to_owned()),
             declarations: vec![
                 Declaration::Var("_foo".to_string(),"foo",Some(Annotation::ExportToolButton("foo"))),
-                Declaration::Function("foo", vec![Statement::Pass])
+                Declaration::Function("foo", None, vec![], vec![Statement::Pass])
             ]
         };
 
         let refactored_program = program.toggle_tool_button(
-            Declaration::Function("foo", vec![Statement::Pass])
+            Declaration::Function("foo", None, vec![], vec![Statement::Pass])
         );
 
         assert_eq!(
@@ -778,7 +814,7 @@ mod tests {
                 is_tool: true,
                 super_class: Some("Node".to_owned()),
                 declarations: vec![
-                    Declaration::Function("foo", vec![Statement::Pass])
+                    Declaration::Function("foo", None, vec![], vec![Statement::Pass])
                 ]
             }
         )
@@ -794,7 +830,7 @@ mod tests {
                 is_tool: false,
                 super_class: None,
                 declarations: vec![
-                    Declaration::Function("foo", vec![Statement::Pass]),
+                    Declaration::Function("foo", None, vec![], vec![Statement::Pass]),
                     Declaration::EmptyLine,
                     Declaration::Unknown("saracatunga = 3 + 7"),
                     Declaration::Unknown("$coso.3")
@@ -807,5 +843,111 @@ mod tests {
         let input = "func foo():\n\tpass\n\nsaracatunga = 3 + 7\n$coso.3\n";
 
         assert_parse_roundtrip(input);
+    }
+
+    #[test]
+    fn parse_function_with_body_even_if_it_has_unknowns() {
+        let input = "func foo():\n\tpass\n\tsaracatunga = 3 + 7\n";
+
+        assert_parse_eq(input,
+        Program {
+            is_tool: false,
+            super_class: None,
+            declarations: vec![
+                Declaration::Function("foo", None, vec![], vec![
+                    Statement::Pass,
+                    Statement::Unknown("saracatunga = 3 + 7".to_string())
+                ])
+            ]
+        });
+    }
+
+    #[test]
+    fn parse_functions_with_parameters() {
+        let input = "func foo(arg1, arg2):\n\tpass\n";
+
+        assert_parse_eq(input,
+        Program {
+            is_tool: false,
+            super_class: None,
+            declarations: vec![
+                Declaration::Function("foo",
+                None,
+                vec![
+                    Parameter { name: "arg1" },
+                    Parameter { name: "arg2" }],
+                vec![
+                    Statement::Pass
+                ])
+            ]
+        });
+    }
+
+    #[test]
+    fn function_with_parameters_to_string() {
+        let program = Program {
+            is_tool: false,
+            super_class: None,
+            declarations: vec![
+                Declaration::Function("foo",
+                None,
+                vec![
+                    Parameter { name: "arg1" },
+                    Parameter { name: "arg2" }],
+                vec![
+                    Statement::Pass
+                ])
+            ]
+        };
+
+        assert_eq!(program.as_str(),
+            "func foo(arg1, arg2):\n\tpass\n"
+        );
+    }
+
+    #[test]
+    fn function_with_parameters_roundtrip() {
+        assert_parse_roundtrip("func foo(arg1, arg2):\n\tpass\n");
+    }
+
+    #[test]
+    fn parse_function_with_type() {
+        let input = "func foo(arg1, arg2) -> String:\n\tpass\n";
+
+        assert_parse_eq(input,
+        Program {
+            is_tool: false,
+            super_class: None,
+            declarations: vec![
+                Declaration::Function("foo",
+                Some("String".to_string()),
+                vec![
+                    Parameter { name: "arg1" },
+                    Parameter { name: "arg2" }],
+                vec![
+                    Statement::Pass
+                ])
+            ]
+        });
+    }
+
+    #[test]
+    fn function_with_type_to_string() {
+        let program = Program {
+            is_tool: false,
+            super_class: None,
+            declarations: vec![
+                Declaration::Function("foo",
+                Some("String".to_string()),
+                vec![
+                    Parameter { name: "arg1" },
+                    Parameter { name: "arg2" }],
+                vec![
+                    Statement::Pass
+                ])
+            ]
+        };
+
+        assert_eq!(program.as_str(), "func foo(arg1, arg2) -> String:\n\tpass\n");
     }
 }

@@ -11,7 +11,7 @@ config_version=5
 [application]
 
 config/name="refactorings"
-config/features=PackedStringArray("4.3", "Forward Plus")
+config/features=PackedStringArray("4.4", "Forward Plus")
 config/icon="res://icon.svg"
 
 [autoload]
@@ -21,3 +21,7 @@ RuakeLayer="*res://addons/ruake/core/RuakeLayer.tscn"
 [editor_plugins]
 
 enabled=PackedStringArray("res://addons/refactorings/plugin.cfg", "res://addons/ruake/plugin.cfg")
+
+[gui]
+
+timers/tooltip_delay_sec.editor_hint=0.1
