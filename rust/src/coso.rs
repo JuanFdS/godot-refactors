@@ -1,5 +1,8 @@
+use std::ops::Index;
+
 use pest::Parser;
 use pest_derive::Parser;
+
 
 #[derive(Parser)]
 #[grammar = "gdscript.pest"]
@@ -31,9 +34,20 @@ impl GDScriptParser {
     }
 
     fn to_annotation(parse_result: Pair<Rule>) -> Annotation {
-        match parse_result.into_inner().next().unwrap().as_rule() {
+        let pair = parse_result.into_inner().next().unwrap();
+        match pair.as_rule() {
             Rule::export => Annotation::Export,
             Rule::onready => Annotation::OnReady,
+            Rule::export_tool_button_annotation => Annotation::ExportToolButton(
+                pair.into_inner()
+                    .find(|pair| pair.as_rule() == Rule::STRING )
+                    .unwrap()
+                    .into_inner()
+                    .find(|pair|pair.as_rule() == Rule::STRING_CONTENT)
+                    .unwrap()
+                    .as_span()
+                    .as_str()
+            ),
             _ => panic!()
         }
     }
@@ -91,11 +105,14 @@ impl GDScriptParser {
                     |p| p.as_rule() == Rule::identifier).unwrap();
                 let expression = inner_rules.find(|p| p.as_rule() == Rule::expression).unwrap();
                 Declaration::Var(
-                    identifier.as_span().as_str(),
+                    identifier.as_span().as_str().to_string(),
                     expression.as_span().as_str(),
                     annotation.map(|pair| Self::to_annotation(pair))
             )
             }
+            Rule::unknown => {
+                Declaration::Unknown(parse_result.as_span().as_str())
+            },
             Rule::declaration => Self::to_declaration(parse_result.into_inner().next().unwrap()),
             _ => panic!(),
         }
@@ -139,12 +156,18 @@ impl<'a> Program<'a> {
             .map(|declaration| declaration.as_str())
             .collect::<Vec<String>>()
             .join("\n");
+        code_text += "\n";
         code_text
     }
 
     pub fn move_declaration_down(&self, declaration: Declaration) -> Program {
-        let maybe_idx = self.declarations.iter().position(|x| *x == declaration).filter(|idx| (idx + 1) < self.declarations.len());
+        let maybe_idx = self.declarations.iter().position(|x| *x == declaration);
         match maybe_idx {
+            Some(idx) if idx + 1 == self.declarations.len() => {
+                let mut updated_declarations = self.declarations.clone();
+                updated_declarations.insert(idx, Declaration::EmptyLine);
+                self.with_declarations(updated_declarations)
+            },
             Some(idx) => {
                 let mut updated_declarations = self.declarations.clone();
                 updated_declarations.swap(idx, idx + 1);
@@ -171,6 +194,46 @@ impl<'a> Program<'a> {
         new_program.is_tool = !self.is_tool;
         new_program
     }
+    
+    pub fn toggle_tool_button(&self, function: Declaration<'a>) -> Program<'a> {
+        match function {
+            Declaration::Function(name, _) => {
+                let mut declarations: Vec<Declaration<'a>> = self.declarations.clone();
+                let maybe_idx: Option<usize> = declarations.iter().position(
+                    |declaration| *declaration == function
+                );
+                match maybe_idx {
+                    None => self.clone(),
+                    Some(idx) => {
+                        let already_defined_toggle_button_var_idx = declarations.clone().into_iter().position(|declaration|
+                            match declaration {
+                                Declaration::Var(_, f_name, Some(Annotation::ExportToolButton(_))) => f_name == name,
+                                _ => false
+                            }
+                        );
+                        match already_defined_toggle_button_var_idx {
+                            Some(idx) => {
+                                declarations.remove(idx);
+                                self.with_declarations(declarations)
+                            }
+                            None => {
+                                let var_name: String = format!("_{}", name);
+                                let button_variable: Declaration<'a> =
+                                    Declaration::Var(
+                                        var_name,
+                                        name,
+                                        Some(Annotation::ExportToolButton(name))
+                                    );
+                                declarations.insert(idx, button_variable);
+                                self.with_declarations(declarations)
+                            },
+                        }
+                    }
+                }
+            }
+            _ => self.clone()
+        }
+    }
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -179,25 +242,29 @@ pub enum Declaration<'a> {
     Function(&'a str, Vec<Statement>),
     EmptyLine,
     // Var(identifier, value, anotation)
-    Var(&'a str, &'a str, Option<Annotation>)
+    Var(String, &'a str, Option<Annotation<'a>>),
+    Unknown(&'a str)
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub enum Annotation {
+pub enum Annotation<'a> {
     Export,
-    OnReady
+    OnReady,
+    ExportToolButton(&'a str)
 }
 
-impl Annotation {
+impl Annotation<'_> {
     pub fn as_str(&self) -> String {
         match self {
             Annotation::Export => "@export".to_string(),
             Annotation::OnReady => "@onready".to_string(),
+            Annotation::ExportToolButton(some_string) =>
+                "@export_tool_button(\"".to_owned() + some_string + "\")",
         }
     }
 }
 
-impl Declaration<'_> {
+impl<'a> Declaration<'a> {
     pub fn as_str(&self) -> String {
         match self {
             Declaration::Function(name, statements) => {
@@ -217,15 +284,17 @@ impl Declaration<'_> {
             Declaration::EmptyLine => "".to_string(),
             Declaration::Var(identifier, value, annotation) =>
                 format!("{annotation}var {identifier} = {value}", identifier=identifier, value=value,annotation=annotation.clone().map(|x| x.as_str() + " ").unwrap_or("".to_string())),
+            Declaration::Unknown(string) => string.to_string(),
         }
     }
 
-    pub fn toggle_annotation(&self, annotation: Annotation) -> Declaration {
+    pub fn toggle_annotation(&self, annotation: Annotation<'a>) -> Declaration<'a> {
         match self {
-            Declaration::Var(identifier, value, Some(previousAnnotation))
-                if *previousAnnotation == annotation => Declaration::Var(identifier, value, None),
+            Declaration::Var(identifier, value, Some(previous_annotation))
+                if *previous_annotation == annotation => Declaration::Var(
+                    identifier.to_string(), value, None),
             Declaration::Var(identifier, value, _) =>
-                Declaration::Var(identifier, value, Some(annotation)),
+                Declaration::Var(identifier.to_string(), value, Some(annotation)),
             _ => self.clone()
         }
     }
@@ -247,6 +316,8 @@ impl Statement {
 
 #[cfg(test)]
 mod tests {
+    use pest::parses_to;
+
     use super::*;
 
     fn assert_parse_eq(input: &str, expected_result: Program) {
@@ -343,7 +414,7 @@ mod tests {
                         Declaration::Function("bar", vec![Statement::Pass])
                     ]
             }.as_str(),
-            "func foo():\n\tpass\nfunc bar():\n\tpass"
+            "func foo():\n\tpass\nfunc bar():\n\tpass\n"
         )
     }
 
@@ -360,7 +431,7 @@ mod tests {
                     Declaration::Function("bar", vec![Statement::Pass])
                 ]
             }.as_str(),
-            "\nfunc foo():\n\tpass\nfunc bar():\n\tpass"
+            "\nfunc foo():\n\tpass\nfunc bar():\n\tpass\n"
         )
     }
 
@@ -381,7 +452,7 @@ mod tests {
     }
 
     #[test]
-    fn move_function_down_when_it_is_the_last_function_leaves_the_program_as_it_is() {
+    fn move_function_down_when_it_is_the_last_function_adds_a_newline_before_it() {
         let foo = Declaration::Function("foo", vec![Statement::Pass]);
         let bar = Declaration::Function("bar", vec![Statement::Pass]);
         assert_eq!(
@@ -393,7 +464,7 @@ mod tests {
             Program {
                 is_tool: false,
                 super_class: None,
-                declarations: vec![foo.clone(), bar.clone()] }
+                declarations: vec![foo.clone(), Declaration::EmptyLine, bar.clone()] }
         )
     }
 
@@ -436,7 +507,7 @@ mod tests {
     #[test]
     fn move_function_down_changes_the_code_so_the_declaration_goes_down() {
         let program = GDScriptParser::parse_to_program(
-            "func foo():\n    pass\nfunc bar():\n    pass");
+            "func foo():\n    pass\nfunc bar():\n    pass\n");
 
         let foo_function = || GDScriptParser::parse_to_declaration("func foo():\n    pass");
 
@@ -444,7 +515,7 @@ mod tests {
 
         assert_eq!(
             refactored_program.as_str(),
-            "func bar():\n\tpass\nfunc foo():\n\tpass"
+            "func bar():\n\tpass\nfunc foo():\n\tpass\n"
         )
     }
 
@@ -461,13 +532,13 @@ mod tests {
 
         assert_eq!(
             program_with_foo_one_time_down.as_str(),
-            "\nfunc foo():\n\tpass\nfunc bar():\n\tpass"
+            "\nfunc foo():\n\tpass\nfunc bar():\n\tpass\n"
         );
 
         let program_with_foo_two_times_down = program_with_foo_one_time_down.move_declaration_down(foo_function());
         assert_eq!(
             program_with_foo_two_times_down.as_str(),
-            "\nfunc bar():\n\tpass\nfunc foo():\n\tpass"
+            "\nfunc bar():\n\tpass\nfunc foo():\n\tpass\n"
         )
     }
 
@@ -477,7 +548,7 @@ mod tests {
             "var x = 2",
             Program {
                 is_tool: false,
-                declarations: vec![Declaration::Var("x","2",None)],
+                declarations: vec![Declaration::Var("x".to_string(),"2",None)],
                 super_class: None
             }
         )
@@ -489,7 +560,7 @@ mod tests {
             "var _x = 2",
             Program {
                 is_tool: false,
-                declarations: vec![Declaration::Var("_x","2",None)],
+                declarations: vec![Declaration::Var("_x".to_string(),"2",None)],
                 super_class: None
             }
         )
@@ -502,7 +573,7 @@ mod tests {
             Program {
                 is_tool: false,
                 super_class: None,
-                declarations: vec![Declaration::Var("x","2",Some(Annotation::Export))]
+                declarations: vec![Declaration::Var("x".to_string(),"2",Some(Annotation::Export))]
             }
         )
     }
@@ -510,16 +581,16 @@ mod tests {
     #[test]
     fn toggle_export_annotation_adds_export_if_var_declaration_doesnt_has_it() {
         assert_eq!(
-            Declaration::Var("x","2",None).toggle_annotation(Annotation::Export),
-            Declaration::Var("x","2",Some(Annotation::Export))
+            Declaration::Var("x".to_string(),"2",None).toggle_annotation(Annotation::Export),
+            Declaration::Var("x".to_string(),"2",Some(Annotation::Export))
         )
     }
 
     #[test]
     fn toggle_export_annotation_changes_annotation_to_export_if_it_is_a_different_one() {
         assert_eq!(
-            Declaration::Var("x","2",Some(Annotation::OnReady)).toggle_annotation(Annotation::Export),
-            Declaration::Var("x","2",Some(Annotation::Export))
+            Declaration::Var("x".to_string(),"2",Some(Annotation::OnReady)).toggle_annotation(Annotation::Export),
+            Declaration::Var("x".to_string(),"2",Some(Annotation::Export))
         )
     }
 
@@ -527,8 +598,8 @@ mod tests {
     #[test]
     fn toggle_export_annotation_removes_annotation_if_it_has_export() {
         assert_eq!(
-            Declaration::Var("x","2",Some(Annotation::Export)).toggle_annotation(Annotation::Export),
-            Declaration::Var("x","2",None)
+            Declaration::Var("x".to_string(),"2",Some(Annotation::Export)).toggle_annotation(Annotation::Export),
+            Declaration::Var("x".to_string(),"2",None)
         )
     }
 
@@ -558,7 +629,7 @@ mod tests {
                         Declaration::Function("foo",vec![Statement::Pass])
                         ]
             }.as_str(),
-            "@tool\nfunc foo():\n\tpass"
+            "@tool\nfunc foo():\n\tpass\n"
         )
     }
 
@@ -615,12 +686,126 @@ mod tests {
 
         assert_eq!(
             program_code,
-            "@tool\nextends Node2D\nfunc foo():\n\tpass"
+            "@tool\nextends Node2D\nfunc foo():\n\tpass\n"
         )
     }
 
     #[test]
     fn tool_program_with_inheritance_roundtrip() {
-        assert_parse_roundtrip("@tool\nextends Node2D\nfunc foo():\n\tpass");
+        assert_parse_roundtrip("@tool\nextends Node2D\nfunc foo():\n\tpass\n");
+    }
+
+    #[test]
+    fn parsing_program_with_export_tool_button_annotation() {
+        let input = "@tool\nextends Node\n@export_tool_button(\"Bleh\") var _foo = foo\nfunc foo():\n\tpass".to_string();
+
+        assert_parse_eq(
+            &input,
+            Program {
+                is_tool: true,
+                super_class: Some("Node".to_owned()),
+                declarations: vec![
+                    Declaration::Var(
+                        "_foo".to_string(),
+                        "foo",
+                        Some(Annotation::ExportToolButton("Bleh"))
+                    ),
+                    Declaration::Function("foo", vec![Statement::Pass])
+                ]
+            }
+        );
+    }
+
+    #[test]
+    fn toggle_tool_button_on_function() {
+        let program = Program {
+                is_tool: true,
+                super_class: Some("Node".to_owned()),
+                declarations: vec![
+                    Declaration::Function("foo", vec![Statement::Pass])
+                ]
+            };
+
+        let refactored_program = program.toggle_tool_button(Declaration::Function("foo", vec![Statement::Pass]));
+
+        assert_eq!(
+            refactored_program,
+            Program {
+                is_tool: true,
+                super_class: Some("Node".to_owned()),
+                declarations: vec![
+                    Declaration::Var("_foo".to_string(),"foo",Some(Annotation::ExportToolButton("foo"))),
+                    Declaration::Function("foo", vec![Statement::Pass])
+                ]
+            });
+    }
+
+    #[test]
+    fn toggle_tool_button_on_function_from_string_to_string() {
+        let input =
+        "@tool\nextends Node\n\nfunc foo():\n\tpass\n";
+
+        let program = GDScriptParser::parse_to_program(input);
+        let foo = GDScriptParser::parse_to_declaration(
+            "func foo():\n\tpass"
+        );
+        let new_program = program.toggle_tool_button(foo);
+
+        assert_eq!(
+            new_program.as_str(),
+            "@tool\nextends Node\n\n@export_tool_button(\"foo\") var _foo = foo\nfunc foo():\n\tpass\n"
+        );
+    }
+
+    #[test]
+    fn toggle_tool_button_on_function_that_already_had_a_button_removes_it() {
+        let program = Program {
+            is_tool: true,
+            super_class: Some("Node".to_owned()),
+            declarations: vec![
+                Declaration::Var("_foo".to_string(),"foo",Some(Annotation::ExportToolButton("foo"))),
+                Declaration::Function("foo", vec![Statement::Pass])
+            ]
+        };
+
+        let refactored_program = program.toggle_tool_button(
+            Declaration::Function("foo", vec![Statement::Pass])
+        );
+
+        assert_eq!(
+            refactored_program,
+            Program {
+                is_tool: true,
+                super_class: Some("Node".to_owned()),
+                declarations: vec![
+                    Declaration::Function("foo", vec![Statement::Pass])
+                ]
+            }
+        )
+    }
+
+    #[test]
+    fn if_there_are_unknown_lines_they_are_parsed_as_unknwowns() {
+        let input = "func foo():\n\tpass\n\nsaracatunga = 3 + 7\n$coso.3\n";
+
+        assert_parse_eq(
+            input,
+            Program {
+                is_tool: false,
+                super_class: None,
+                declarations: vec![
+                    Declaration::Function("foo", vec![Statement::Pass]),
+                    Declaration::EmptyLine,
+                    Declaration::Unknown("saracatunga = 3 + 7"),
+                    Declaration::Unknown("$coso.3")
+                ]
+            });
+    }
+
+    #[test]
+    fn if_there_are_unknown_lines_they_are_parsed_back_as_they_were() {
+        let input = "func foo():\n\tpass\n\nsaracatunga = 3 + 7\n$coso.3\n";
+
+        assert_parse_roundtrip(input);
     }
 }

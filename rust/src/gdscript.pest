@@ -5,11 +5,15 @@ program = {
 }
 inheritance = { "extends" ~ whitespace ~ identifier }
 tool_annotation = { "@tool" }
-declaration = { function | var_declaration }
+declaration = { function | var_declaration | unknown }
+unknown = { (!"\n" ~ ANY)+ }
+STRING = { "\"" ~ STRING_CONTENT ~ "\"" }
+STRING_CONTENT = { (!"\"" ~ ANY)* }
 var_declaration = { (annotation ~ whitespace)? ~ "var" ~ whitespace ~ identifier ~ whitespace ~ "=" ~ whitespace ~ expression }
-annotation = { "@" ~ (export | onready) }
+annotation = { "@" ~ (export_tool_button_annotation | export | onready) }
 onready = { "onready" }
 export = { "export" }
+export_tool_button_annotation = { "export_tool_button(" ~ STRING ~ ")" }
 expression = { ASCII_ALPHANUMERIC+ }
 function = { "func" ~ whitespace ~ identifier ~ "()" ~ ":" ~ function_body }
 function_body = { (NEWLINE ~ identacion ~ statement)+ }
@@ -18,3 +22,4 @@ identacion = { "    " | "\t" }
 identifier = { "_"* ~ ASCII_ALPHA ~ ASCII_ALPHANUMERIC* ~ !ASCII_ALPHANUMERIC }
 statement = { "pass" }
 whitespace = _{ " "+ }
+

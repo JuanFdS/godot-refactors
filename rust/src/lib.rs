@@ -41,5 +41,13 @@ impl MiParser {
 
         GString::from(refactored_program.as_str())
     }
+    #[func]
+    fn toggle_tool_button(&self, texto_seleccionado: String, todo_el_archivo: String) -> GString {
+        let program = GDScriptParser::parse_to_program(&todo_el_archivo);
+        let function = GDScriptParser::parse_to_declaration(&texto_seleccionado);
+        let refactored_program = program.toggle_tool_button(function);
+
+        GString::from(refactored_program.as_str())
+    }
 }
 
