@@ -1,4 +1,4 @@
-use coso::{Annotation, GDScriptParser};
+use coso::{Annotation, Declaration, GDScriptParser};
 mod coso;
 use godot::prelude::*;
 
@@ -48,6 +48,15 @@ impl MiParser {
         let refactored_program = program.toggle_tool_button(function);
 
         GString::from(refactored_program.as_str())
+    }
+    #[func]
+    fn function_at_line(&self, line: i32, archivo: String) -> GString {
+        let donde_empieza = archivo.lines().skip(line as usize).collect::<Vec<&str>>().join("\n");
+
+        match GDScriptParser::parse_to_declaration(&donde_empieza) {
+            f @ Declaration::Function(_, _, _, _) => GString::from(f.as_str()),
+            _ => GString::from("")
+        }
     }
 }
 

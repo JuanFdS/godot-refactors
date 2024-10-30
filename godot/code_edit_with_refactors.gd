@@ -1,9 +1,9 @@
 @tool
 extends CodeEdit
 
-const REFACTOR_TOOLTIP = preload("res://RefactorTooltip.tscn")
+const REFACTOR_TOOLTIP = preload("res://addons/refactorings/refactor_tooltip.tscn")
 
-var tooltip
+var tooltip = null
 var stuff_connected = false
 
 func connect_stuff():

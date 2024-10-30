@@ -1,0 +1,29 @@
+[gd_scene load_steps=2 format=3 uid="uid://dn1pq34e34gug"]
+
+[ext_resource type="Script" path="res://addons/refactorings/refactor_tooltip.gd" id="1_h5jhe"]
+
+[node name="RefactorTooltip" type="HBoxContainer"]
+offset_right = 57.0
+offset_bottom = 23.0
+pivot_offset = Vector2(24, -14)
+mouse_filter = 2
+script = ExtResource("1_h5jhe")
+
+[node name="PanelContainer" type="PanelContainer" parent="."]
+layout_mode = 2
+
+[node name="HBoxContainer" type="HBoxContainer" parent="PanelContainer"]
+layout_mode = 2
+
+[node name="Button" type="Button" parent="PanelContainer/HBoxContainer"]
+layout_mode = 2
+text = "@"
+
+[node name="Label" type="Label" parent="PanelContainer/HBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Texto:"
+
+[node name="Texto" type="Label" parent="PanelContainer/HBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
