@@ -14,7 +14,18 @@ struct MiParser {
 }
 
 #[godot_api]
-impl MiParser {   
+impl MiParser {
+    #[func]
+    fn try_parse_program(&self, programa: String) -> GString {
+        match GDScriptParser::try_parse_to_program(&programa) {
+            Ok(program) => match program.first_error() {
+                Some(Declaration::Unknown(line)) => GString::from(line),
+                _ => GString::from(""),
+            },
+            Err(error) => GString::from(error.line()),
+        }
+    }
+
     #[func]
     fn toggle_export(&self, linea: String) -> GString {
         let var_declaration = GDScriptParser::parse_to_declaration(&linea);

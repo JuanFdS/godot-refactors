@@ -8,14 +8,34 @@ const REFACTOR_TOOLTIP = preload("res://addons/refactorings/refactor_tooltip.tsc
 @onready var mi_parser: MiParser = $MiParser
 var refactor_tooltip
 
+
 func _ready():
+	%Error.pressed.connect(func():
+		#%PopupErrorMessage.popup_centered()
+		var code_edit = _code_edit()
+		var pos = code_edit.search(%ErrorMessage.text, 0, 0, 0)
+		var amount_of_lines = 1
+		var finishing_caret_line = pos.y + amount_of_lines - 1
+		var finishing_caret_column = code_edit.get_line_width(finishing_caret_line)
+		code_edit.set_caret_line(pos.y, true)
+		code_edit.set_caret_column(pos.x, true)
+		code_edit.select(pos.y, pos.x, finishing_caret_line, finishing_caret_column)
+		print(%ErrorMessage.text)
+	)
 	refactor_tooltip = REFACTOR_TOOLTIP.instantiate()
 	EditorInterface.get_base_control().add_child(refactor_tooltip)
 	EditorInterface.get_script_editor().editor_script_changed.connect(func(script: Script):
-		if(script):
-			indicador.modulate = Color.GREEN
-			indicador.text = "Refactors para %s" % script.resource_path
 		var code_edit = _code_edit()
+		if(script):
+			var errors = mi_parser.try_parse_program(code_edit.text)
+			match errors:
+				"":
+					%Error.visible = false
+					%OK.visible = true
+				_:
+					%Error.visible = true
+					%OK.visible = false
+			%ErrorMessage.text = errors
 		if(not code_edit.gui_input.is_connected(self.handle_input_on_code_edit)):
 			code_edit.gui_input.connect(self.handle_input_on_code_edit)
 	)
@@ -63,23 +83,10 @@ func _input(event):
 		elif event.pressed and event.ctrl_pressed and event.keycode == KEY_E:
 			toggle_export(selected_line)
 		elif event.pressed and event.ctrl_pressed and event.keycode == KEY_T:
-			var selected_function = mi_parser.function_at_line(selected_line, all_text)
-			var new_text = mi_parser.toggle_tool_button(selected_function, all_text)
-			if new_text != all_text:
-				var diff_lines = new_text.split("\n").size() - all_text.split("\n").size()
-				var previous_caret_line = (code_edit as TextEdit).get_caret_line()
-				var previous_caret_column = (code_edit as TextEdit).get_caret_column()
-				code_edit.text = new_text
-				code_edit.set_caret_column(previous_caret_column)
-				code_edit.set_caret_line(max(0, previous_caret_line + diff_lines))
-				var script: Script = EditorInterface.get_script_editor().get_current_script()
-				script.source_code = code_edit.text
-				ResourceSaver.save(script)
-				EditorInterface.get_selection().get_selected_nodes().map(func(node: Node):
-					node.notify_property_list_changed()
-				)
+			toggle_tool_button(selected_line)
 		elif event.pressed and event.keycode == KEY_CTRL:# and not event.is_echo():
 			spawn_tooltip()
+
 
 func spawn_tooltip():
 	var code_edit = _code_edit()
@@ -101,6 +108,29 @@ func toggle_export(line_number: int):
 		code_edit.insert_line_at(line_number, new_text)
 		code_edit.set_caret_column(max(0, previous_caret_column + diff_columns))
 		code_edit.set_caret_line(line_number)
+
+
+func toggle_tool_button(selected_line: int):
+	var code_edit = _code_edit()
+	var all_text = code_edit.text
+	var selected_function = mi_parser.function_at_line(selected_line, all_text)
+	var new_text = mi_parser.toggle_tool_button(selected_function, all_text)
+	if new_text != all_text:
+		var diff_lines = new_text.split("\n").size() - all_text.split("\n").size()
+		var previous_caret_line = code_edit.get_caret_line()
+		var previous_caret_column = code_edit.get_caret_column()
+		code_edit.clear()
+		code_edit.insert_text(new_text, 0, 0)
+		#code_edit.text = new_text
+		code_edit.set_caret_column(previous_caret_column)
+		code_edit.set_caret_line(max(0, previous_caret_line + diff_lines))
+		#return
+		#var script: Script = EditorInterface.get_script_editor().get_current_script()
+		#script.source_code = code_edit.text
+		#ResourceSaver.save(script)
+		#EditorInterface.get_selection().get_selected_nodes().map(func(node: Node):
+			#node.notify_property_list_changed()
+		#)
 
 func _exit_tree():
 	if(is_instance_valid(refactor_tooltip)):

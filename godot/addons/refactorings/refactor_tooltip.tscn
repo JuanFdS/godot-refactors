@@ -24,6 +24,11 @@ unique_name_in_owner = true
 layout_mode = 2
 text = "@export"
 
+[node name="ToggleToolButton" type="Button" parent="PanelContainer/HBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "@tool_button"
+
 [node name="Texto" type="Label" parent="PanelContainer/HBoxContainer"]
 unique_name_in_owner = true
 layout_mode = 2

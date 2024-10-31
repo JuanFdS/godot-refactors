@@ -12,12 +12,18 @@ use pest::iterators::Pair;
 
 impl GDScriptParser {
     fn parse_to_ast<'a, T>(input: &'a str, rule_type: Rule, rule_mapper : fn(Pair<'a, Rule>) -> T) -> T {
-        let parse_result = GDScriptParser::parse(rule_type, input)
-            .expect("Malio sal el parseo")
-            .next()
-            .unwrap();
+        Self::try_parse_to_ast(input, rule_type, rule_mapper).expect("Malio sal el parseo")
+    }
 
-        rule_mapper(parse_result)
+    fn try_parse_to_ast<'a, T>(
+        input: &'a str, rule_type: Rule, rule_mapper : fn(Pair<'a, Rule>) -> T
+    ) -> Result<T, pest::error::Error<Rule>> {
+        GDScriptParser::parse(rule_type, input)
+            .map(|mut pairs| rule_mapper(pairs.next().unwrap()))
+    }
+
+    pub fn try_parse_to_program<'a>(input: &'a str) -> Result<Program<'_>, pest::error::Error<Rule>> {
+        Self::try_parse_to_ast(input, Rule::program, Self::to_program)
     }
 
     pub fn parse_to_program<'a>(input: &'a str) -> Program {
@@ -153,6 +159,19 @@ pub struct Program<'a> {
 }
 
 impl<'a> Program<'a> {
+    pub fn first_error(&self) -> Option<Declaration> {
+        self.declarations.iter().find(|declaration|
+            match declaration {
+                Declaration::Unknown(_) => true,
+                _ => false
+            }
+        ).cloned()
+    }
+
+    pub fn is_valid(&self) -> bool {
+        self.first_error().is_none()
+    }
+
     fn with_declarations(&self, new_declarations: Vec<Declaration<'a>>) -> Program<'a> {
         let mut new_program = self.clone();
         new_program.declarations = new_declarations;
@@ -949,5 +968,33 @@ mod tests {
         };
 
         assert_eq!(program.as_str(), "func foo(arg1, arg2) -> String:\n\tpass\n");
+    }
+
+    #[test]
+    fn a_program_is_not_valid_if_it_has_unknowns() {
+        let program = GDScriptParser::parse_to_program("function foo():\n\tpass");
+
+        assert!(!program.is_valid());
+    }
+
+    #[test]
+    fn a_program_is_valid_if_it_does_not_have_any_unknown() {
+        let program = GDScriptParser::parse_to_program("func foo():\n\tpass");
+
+        assert!(program.is_valid());
+    }
+
+    #[test]
+    fn a_valid_program_first_error_is_none() {
+        let program = GDScriptParser::parse_to_program("func foo():\n\tpass");
+
+        assert_eq!(None, program.first_error());
+    }
+
+    #[test]
+    fn an_invalid_program_first_error_is_its_first_unknown() {
+        let program = GDScriptParser::parse_to_program("function foo():\n\tpass");
+
+        assert_eq!(Some(Declaration::Unknown("function foo():")), program.first_error());
     }
 }

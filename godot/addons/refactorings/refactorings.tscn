@@ -1,28 +1,111 @@
-[gd_scene load_steps=2 format=3 uid="uid://bv0pa7axrrrn5"]
+[gd_scene load_steps=7 format=3 uid="uid://bv0pa7axrrrn5"]
 
 [ext_resource type="Script" path="res://addons/refactorings/refactorings.gd" id="1_hn4i6"]
 
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_swim5"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_463wr"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_t0sjw"]
+bg_color = Color(1, 0, 0, 1)
+border_width_left = 4
+border_width_top = 4
+border_width_right = 4
+border_width_bottom = 4
+border_color = Color(0.8, 0.8, 0.8, 0)
+corner_radius_top_left = 50
+corner_radius_top_right = 50
+corner_radius_bottom_right = 50
+corner_radius_bottom_left = 50
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_wtu3w"]
+bg_color = Color(0.612299, 1.50409e-06, 5.77569e-07, 1)
+border_width_left = 4
+border_width_top = 4
+border_width_right = 4
+border_width_bottom = 4
+border_color = Color(0.8, 0.8, 0.8, 0)
+corner_radius_top_left = 50
+corner_radius_top_right = 50
+corner_radius_bottom_right = 50
+corner_radius_bottom_left = 50
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_564sj"]
+bg_color = Color(0, 1, 0, 1)
+border_width_left = 4
+border_width_top = 4
+border_width_right = 4
+border_width_bottom = 4
+border_color = Color(0, 0, 0, 0)
+corner_radius_top_left = 500
+corner_radius_top_right = 500
+corner_radius_bottom_right = 500
+corner_radius_bottom_left = 500
+
 [node name="Refactorings" type="Panel"]
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-size_flags_horizontal = 3
-size_flags_vertical = 3
+custom_minimum_size = Vector2(30, 0)
 mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxEmpty_swim5")
 script = ExtResource("1_hn4i6")
 
 [node name="MiParser" type="MiParser" parent="."]
 
 [node name="Indicador" type="RichTextLabel" parent="."]
 unique_name_in_owner = true
-modulate = Color(0, 1, 0, 1)
+visible = false
+modulate = Color(1, 0, 0, 1)
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-text = "Refactors para res://addons/refactorings/refactorings.gd"
+text = "Fallo: class_name Refactorings extends Control"
 fit_content = true
+scroll_following = true
+
+[node name="Error" type="Button" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/focus = SubResource("StyleBoxEmpty_463wr")
+theme_override_styles/hover_pressed_mirrored = SubResource("StyleBoxFlat_t0sjw")
+theme_override_styles/hover = SubResource("StyleBoxFlat_wtu3w")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_t0sjw")
+theme_override_styles/normal = SubResource("StyleBoxFlat_t0sjw")
+
+[node name="OK" type="Label" parent="."]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_colors/font_color = Color(0, 0, 0, 1)
+theme_override_styles/normal = SubResource("StyleBoxFlat_564sj")
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="PopupErrorMessage" type="PopupPanel" parent="."]
+unique_name_in_owner = true
+size = Vector2i(325, 100)
+visible = true
+
+[node name="ErrorMessage" type="Label" parent="PopupErrorMessage"]
+unique_name_in_owner = true
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 4.0
+offset_top = 4.0
+offset_right = -4.0
+offset_bottom = -4.0
+grow_horizontal = 2
+grow_vertical = 2
+text = "class_name Refactorings extends Control"

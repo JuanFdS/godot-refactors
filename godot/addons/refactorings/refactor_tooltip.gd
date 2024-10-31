@@ -20,11 +20,19 @@ func _ready():
 		refactorings.toggle_export(line_number())
 		queue_free()
 	)
+	%ToggleToolButton.pressed.connect(func():
+		refactorings.toggle_tool_button(line_number())
+		queue_free()
+	)
+
 
 func appear(a_code_edit: CodeEdit):
 	visible = true
 	code_edit = a_code_edit
-	code_edit.text_changed.connect(func(): queue_free())
+	code_edit.text_changed.connect(func():
+		queue_free(),
+		CONNECT_ONE_SHOT
+	)
 	texto.text = code_edit.get_word_at_pos(code_edit.get_local_mouse_pos())
 	offset = Vector2.LEFT * size.x / 2.0
 	var local_mouse_pos = code_edit.get_local_mouse_pos()
