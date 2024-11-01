@@ -4,11 +4,11 @@ compatibility_minimum = 4.1
 reloadable = true
 
 [libraries]
-linux.debug.x86_64 =     "res://addons/lib/lib{YourCrate}.so"
-linux.release.x86_64 =   "res://addons/lib/lib{YourCrate}.so"
-windows.debug.x86_64 =   "res://addons/lib/{YourCrate}.dll"
-windows.release.x86_64 = "res://addons/lib/{YourCrate}.dll"
-macos.debug =            "res://addons/lib/lib{YourCrate}.dylib"
-macos.release =          "res://addons/lib/lib{YourCrate}.dylib"
-macos.debug.arm64 =      "res://addons/lib/lib{YourCrate}.dylib"
-macos.release.arm64 =    "res://addons/lib/lib{YourCrate}.dylib"
+linux.debug.x86_64 =     "res://addons/refactorings/bin/debug/librefactorings.so"
+linux.release.x86_64 =   "res://addons/refactorings/bin/release/librefactorings.so"
+windows.debug.x86_64 =   "res://addons/refactorings/bin/debug/refactorings.dll"
+windows.release.x86_64 = "res://addons/refactorings/bin/release/refactorings.dll"
+macos.debug =            "res://addons/refactorings/bin/debug/librefactorings.dylib"
+macos.release =          "res://addons/refactorings/bin/release/librefactorings.dylib"
+macos.debug.arm64 =      "res://addons/refactorings/bin/debug/librefactorings.dylib"
+macos.release.arm64 =    "res://addons/refactorings/bin/release/librefactorings.dylib"

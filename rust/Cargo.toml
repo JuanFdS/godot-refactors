@@ -1,5 +1,5 @@
 [package]
-name = "rust_project" # Appears in the filename of the compiled dynamic library.
+name = "refactorings" # Appears in the filename of the compiled dynamic library.
 version = "0.1.0"     # You can leave version and edition as-is for now.
 edition = "2021"
 
@@ -10,6 +10,3 @@ crate-type = ["cdylib"]  # Compile this crate to a dynamic C library.
 godot = { git = "https://github.com/godot-rust/gdext", branch = "master" }
 pest = "2.7.14"
 pest_derive = "2.7.14"
-
-[build]
-target-dir = "../godot/addons/refactorings/lib"

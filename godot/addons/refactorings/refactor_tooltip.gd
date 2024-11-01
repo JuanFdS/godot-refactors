@@ -38,6 +38,7 @@ func appear(a_code_edit: CodeEdit):
 	var local_mouse_pos = code_edit.get_local_mouse_pos()
 	line_column = code_edit.get_line_column_at_pos(code_edit.get_local_mouse_pos(), true)
 
+
 func _process(_delta):
 	if EditorInterface.get_edited_scene_root() == self or is_queued_for_deletion():
 		return

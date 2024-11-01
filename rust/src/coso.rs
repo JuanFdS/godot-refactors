@@ -1,4 +1,3 @@
-use std::ops::Index;
 
 use pest::Parser;
 use pest_derive::Parser;
@@ -369,7 +368,7 @@ impl Statement {
 
 #[cfg(test)]
 mod tests {
-    use pest::parses_to;
+    
 
     use super::*;
 
