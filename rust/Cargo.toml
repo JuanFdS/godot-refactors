@@ -10,3 +10,6 @@ crate-type = ["cdylib"]  # Compile this crate to a dynamic C library.
 godot = { git = "https://github.com/godot-rust/gdext", branch = "master" }
 pest = "2.7.14"
 pest_derive = "2.7.14"
+
+[build]
+target-dir = "../godot/addons/refactorings/lib"
