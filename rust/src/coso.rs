@@ -839,6 +839,21 @@ mod tests {
     }
 
     #[test]
+    fn toggle_tool_button_on_function_that_already_had_a_button_removes_it_even_with_underscores() {
+        let input = "@export_tool_button(\"f_oo\") var _f_oo = f_oo\nfunc f_oo():\n\tpass\n";
+
+        let program = GDScriptParser::parse_to_program(input);
+
+        let foo_function = GDScriptParser::parse_to_declaration("func f_oo():\n\tpass\n");
+        let new_program = program.toggle_tool_button(foo_function);
+
+        assert_eq!(
+            new_program.as_str(),
+            "func f_oo():\n\tpass\n"
+        )
+    }
+
+    #[test]
     fn if_there_are_unknown_lines_they_are_parsed_as_unknwowns() {
         let input = "func foo():\n\tpass\n\nsaracatunga = 3 + 7\n$coso.3\n";
 
@@ -995,5 +1010,19 @@ mod tests {
         let program = GDScriptParser::parse_to_program("function foo():\n\tpass");
 
         assert_eq!(Some(Declaration::Unknown("function foo():")), program.first_error());
+    }
+
+    #[test]
+    fn identifiers_of_functions_and_variables_can_have_underscores() {
+        let input = "func __f_o_o__():\n\tpass\nvar _b_a_r_ = 2";
+
+        assert_parse_eq(input, Program {
+            is_tool: false,
+            super_class: None,
+            declarations: vec![
+                Declaration::Function("__f_o_o__", None, vec![], vec![Statement::Pass]),
+                Declaration::Var("_b_a_r_".to_string(), "2", None)
+            ]
+        })
     }
 }
