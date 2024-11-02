@@ -23,4 +23,8 @@ Dentro de la carpeta `rust`, correr `cargo build`. Esto debería generar archivo
 
 # ¿Qué falta?
 
+Una buena forma de encontrar que cosas todavía no están implementadas, es ir a algún script valido de godot, y si la pelotita que indica si el archivo pudo ser parseado es roja, clickearla y ver todas las lineas que aparecen en rojo. Esas lineas tienen cosas que nuestro parser AUN no soporta, ¡podes implementarlo y mandar un PR!
+
+![alt text](images/image.png)
+
 https://github.com/JuanFdS/godot-refactors/issues
