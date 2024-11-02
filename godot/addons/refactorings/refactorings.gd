@@ -5,22 +5,26 @@ const CodeEditWithRefactors = preload("res://code_edit_with_refactors.gd")
 const REFACTOR_TOOLTIP = preload("res://addons/refactorings/refactor_tooltip.tscn")
 
 @onready var indicador = %Indicador
-@onready var mi_parser: MiParser = $MiParser
+@onready var mi_parser = $MiParser
 var refactor_tooltip
-
+var detected_errors = []
 
 func _ready():
 	%Error.pressed.connect(func():
-		#%PopupErrorMessage.popup_centered()
 		var code_edit = _code_edit()
-		var pos = code_edit.search(%ErrorMessage.text, 0, 0, 0)
-		var amount_of_lines = 1
-		var finishing_caret_line = pos.y + amount_of_lines - 1
-		var finishing_caret_column = code_edit.get_line_width(finishing_caret_line)
-		code_edit.set_caret_line(pos.y, true)
-		code_edit.set_caret_column(pos.x, true)
-		code_edit.select(pos.y, pos.x, finishing_caret_line, finishing_caret_column)
-		print(%ErrorMessage.text)
+		var caret_idx = 0
+		for error in detected_errors:
+			var pos = code_edit.search(error, 0, 0, 0)
+			code_edit.set_line_background_color(pos.y, Color.RED)
+			code_edit.caret_changed.connect(func():
+				code_edit.set_line_background_color(pos.y, Color.TRANSPARENT),
+				CONNECT_ONE_SHOT
+			)
+			code_edit.text_changed.connect(func():
+				code_edit.set_line_background_color(pos.y, Color.TRANSPARENT),
+				CONNECT_ONE_SHOT
+			)
+		print(detected_errors)
 	)
 	refactor_tooltip = REFACTOR_TOOLTIP.instantiate()
 	EditorInterface.get_base_control().add_child(refactor_tooltip)
@@ -29,13 +33,13 @@ func _ready():
 		if(script):
 			var errors = mi_parser.try_parse_program(code_edit.text)
 			match errors:
-				"":
+				[]:
 					%Error.visible = false
 					%OK.visible = true
 				_:
 					%Error.visible = true
 					%OK.visible = false
-			%ErrorMessage.text = errors
+			detected_errors = errors
 		if(not code_edit.gui_input.is_connected(self.handle_input_on_code_edit)):
 			code_edit.gui_input.connect(self.handle_input_on_code_edit)
 	)

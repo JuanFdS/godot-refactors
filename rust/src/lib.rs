@@ -16,13 +16,13 @@ struct MiParser {
 #[godot_api]
 impl MiParser {
     #[func]
-    fn try_parse_program(&self, programa: String) -> GString {
+    fn try_parse_program(&self, programa: String) -> Array<GString> {
         match GDScriptParser::try_parse_to_program(&programa) {
-            Ok(program) => match program.first_error() {
-                Some(Declaration::Unknown(line)) => GString::from(line),
-                _ => GString::from(""),
+            Ok(program) => {
+                program.all_errors().iter().map(|declaration| GString::from(declaration.as_str()))
+                    .collect::<Array<GString>>()
             },
-            Err(error) => GString::from(error.line()),
+            Err(error) => array![GString::from(error.line())],
         }
     }
 

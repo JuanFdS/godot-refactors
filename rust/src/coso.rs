@@ -158,6 +158,15 @@ pub struct Program<'a> {
 }
 
 impl<'a> Program<'a> {
+    pub fn all_errors(&self) -> Vec<&Declaration<'a>> {
+        self.declarations.iter().filter(|declaration|
+            match declaration {
+                Declaration::Unknown(_) => true,
+                _ => false
+            }
+        ).collect::<Vec<&Declaration<'a>>>()
+    }
+
     pub fn first_error(&self) -> Option<Declaration> {
         self.declarations.iter().find(|declaration|
             match declaration {
@@ -1004,6 +1013,7 @@ mod tests {
 
         assert_eq!(None, program.first_error());
     }
+    
 
     #[test]
     fn an_invalid_program_first_error_is_its_first_unknown() {

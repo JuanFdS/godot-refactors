@@ -1,5 +1,4 @@
 @tool
-# TODO: HACER QUE LOS IDENTIFIERS SOPORTEN _s
 extends HBoxContainer
 
 var code_edit: CodeEdit
