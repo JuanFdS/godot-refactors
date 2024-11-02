@@ -24,25 +24,33 @@ func _ready():
 				code_edit.set_line_background_color(pos.y, Color.TRANSPARENT),
 				CONNECT_ONE_SHOT
 			)
-		print(detected_errors)
 	)
 	refactor_tooltip = REFACTOR_TOOLTIP.instantiate()
 	EditorInterface.get_base_control().add_child(refactor_tooltip)
 	EditorInterface.get_script_editor().editor_script_changed.connect(func(script: Script):
 		var code_edit = _code_edit()
-		if(script):
-			var errors = mi_parser.try_parse_program(code_edit.text)
-			match errors:
-				[]:
-					%Error.visible = false
-					%OK.visible = true
-				_:
-					%Error.visible = true
-					%OK.visible = false
-			detected_errors = errors
+		parse_script(code_edit)
 		if(not code_edit.gui_input.is_connected(self.handle_input_on_code_edit)):
 			code_edit.gui_input.connect(self.handle_input_on_code_edit)
+		if(not code_edit.text_changed.is_connected(self.on_code_text_changed)):
+			code_edit.text_changed.connect(self.on_code_text_changed.bind(code_edit))
 	)
+
+func on_code_text_changed(code_edit):
+	parse_script(code_edit)
+
+func parse_script(code_edit: CodeEdit):
+	if code_edit != _code_edit():
+		return
+	var errors = mi_parser.try_parse_program(code_edit.text)
+	match errors:
+		[]:
+			%Error.visible = false
+			%OK.visible = true
+		_:
+			%Error.visible = true
+			%OK.visible = false
+	detected_errors = errors
 
 func handle_input_on_code_edit(event: InputEvent):
 	if event is InputEventMouseButton:

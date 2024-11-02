@@ -1,8 +1,9 @@
 @tool
 extends Node2D
 
-func f_oo():
-	pass
+func f_oo(x, y):
+	if x > y:
+		return "lalala"
 
 var as_d = 2
 
