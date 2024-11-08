@@ -23,6 +23,10 @@ func _ready():
 		refactorings.toggle_tool_button(line_number())
 		queue_free()
 	)
+	%ExtractFunction.pressed.connect(func():
+		refactorings.extract_function()
+		queue_free()
+	)
 
 
 func appear(a_code_edit: CodeEdit):
@@ -46,5 +50,7 @@ func _process(_delta):
 	else:
 		var pos = code_edit.get_pos_at_line_column(line_column.y, line_column.x)
 		position = Vector2(pos) + offset
-		if(global_position.distance_to(get_global_mouse_position()) > 150.0):
+		if(abs(global_position.y - get_global_mouse_position().y) > 50.0):
+			visible = false
+		if(abs(global_position.x - get_global_mouse_position().x) > 300.0):
 			visible = false

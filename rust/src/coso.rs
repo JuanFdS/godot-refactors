@@ -41,9 +41,9 @@ impl GDScriptParser {
     fn to_annotation(parse_result: Pair<Rule>) -> Annotation {
         let pair = parse_result.into_inner().next().unwrap();
         match pair.as_rule() {
-            Rule::export => Annotation::Export,
-            Rule::onready => Annotation::OnReady,
-            Rule::export_tool_button_annotation => Annotation::ExportToolButton(
+            Rule::export => AnnotationKind::Export,
+            Rule::onready => AnnotationKind::OnReady,
+            Rule::export_tool_button_annotation => AnnotationKind::ExportToolButton(
                 pair.into_inner()
                     .find(|pair| pair.as_rule() == Rule::STRING )
                     .unwrap()
@@ -54,7 +54,7 @@ impl GDScriptParser {
                     .as_str()
             ),
             _ => panic!()
-        }
+        }.to_annotation()
     }
 
     fn is_rule(expected_rule: Rule) -> impl Fn(Pair<Rule>) -> bool {
@@ -99,7 +99,7 @@ impl GDScriptParser {
                 if next_match.as_rule() == Rule::param_list {
                     parameters = next_match.into_inner()
                               .filter(|pair| pair.as_rule() == Rule::parameter)
-                              .map(|pair| Parameter { name: pair.as_span().as_str() })
+                              .map(|pair| Parameter::from(pair.as_span().as_str()))
                               .collect();
                     next_match = inner_rules.next().unwrap();
                 } else {
@@ -116,9 +116,9 @@ impl GDScriptParser {
                     .into_inner()
                     .filter_map(Self::to_statement)
                     .collect();
-                Declaration::Function(function_name, return_type, parameters, function_body)
+                DeclarationKind::Function(function_name, return_type, parameters, function_body).to_declaration()
             },
-            Rule::empty_line => Declaration::EmptyLine,
+            Rule::empty_line => DeclarationKind::EmptyLine.to_declaration(),
             Rule::var_declaration => {
                 let mut inner_rules = parse_result.into_inner();
                 // inner_rules.find CONSUMES!!!
@@ -126,14 +126,14 @@ impl GDScriptParser {
                 let identifier = inner_rules.find(
                     |p| p.as_rule() == Rule::identifier).unwrap();
                 let expression = inner_rules.find(|p| p.as_rule() == Rule::expression).unwrap();
-                Declaration::Var(
+                DeclarationKind::Var(
                     identifier.as_span().as_str().to_string(),
                     expression.as_span().as_str(),
                     annotation.map(|pair| Self::to_annotation(pair))
-            )
+                ).to_declaration()
             }
             Rule::unknown => {
-                Declaration::Unknown(parse_result.as_span().as_str())
+                DeclarationKind::Unknown(parse_result.as_span().as_str()).to_declaration()
             },
             Rule::declaration => Self::to_declaration(parse_result.into_inner().next().unwrap()),
             _ => panic!(),
@@ -160,8 +160,8 @@ pub struct Program<'a> {
 impl<'a> Program<'a> {
     pub fn all_errors(&self) -> Vec<&Declaration<'a>> {
         self.declarations.iter().filter(|declaration|
-            match declaration {
-                Declaration::Unknown(_) => true,
+            match declaration.kind {
+                DeclarationKind::Unknown(_) => true,
                 _ => false
             }
         ).collect::<Vec<&Declaration<'a>>>()
@@ -169,8 +169,8 @@ impl<'a> Program<'a> {
 
     pub fn first_error(&self) -> Option<Declaration> {
         self.declarations.iter().find(|declaration|
-            match declaration {
-                Declaration::Unknown(_) => true,
+            match declaration.kind {
+                DeclarationKind::Unknown(_) => true,
                 _ => false
             }
         ).cloned()
@@ -211,7 +211,7 @@ impl<'a> Program<'a> {
         match maybe_idx {
             Some(idx) if idx + 1 == self.declarations.len() => {
                 let mut updated_declarations = self.declarations.clone();
-                updated_declarations.insert(idx, Declaration::EmptyLine);
+                updated_declarations.insert(idx, DeclarationKind::EmptyLine.to_declaration());
                 self.with_declarations(updated_declarations)
             },
             Some(idx) => {
@@ -242,8 +242,8 @@ impl<'a> Program<'a> {
     }
     
     pub fn toggle_tool_button(&self, function: Declaration<'a>) -> Program<'a> {
-        match function {
-            Declaration::Function(name, _, _, _) => {
+        match function.kind {
+            DeclarationKind::Function(name, _, _, _) => {
                 let mut declarations: Vec<Declaration<'a>> = self.declarations.clone();
                 let maybe_idx: Option<usize> = declarations.iter().position(
                     |declaration| *declaration == function
@@ -252,8 +252,8 @@ impl<'a> Program<'a> {
                     None => self.clone(),
                     Some(idx) => {
                         let already_defined_toggle_button_var_idx = declarations.clone().into_iter().position(|declaration|
-                            match declaration {
-                                Declaration::Var(_, f_name, Some(Annotation::ExportToolButton(_))) => f_name == name,
+                            match declaration.kind {
+                                DeclarationKind::Var(_, f_name, Some(Annotation { pair: None, kind: AnnotationKind::ExportToolButton(_) })) => f_name == name,
                                 _ => false
                             }
                         );
@@ -264,12 +264,14 @@ impl<'a> Program<'a> {
                             }
                             None => {
                                 let var_name: String = format!("_{}", name);
-                                let button_variable: Declaration<'a> =
-                                    Declaration::Var(
+                                let button_variable: Declaration<'a> = Declaration {
+                                    pair: None,
+                                    kind: DeclarationKind::Var(
                                         var_name,
                                         name,
-                                        Some(Annotation::ExportToolButton(name))
-                                    );
+                                        Some(Annotation { pair: None, kind: AnnotationKind::ExportToolButton(name) })
+                                    )
+                                };
                                 declarations.insert(idx, button_variable);
                                 self.with_declarations(declarations)
                             },
@@ -283,7 +285,13 @@ impl<'a> Program<'a> {
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
-pub enum Declaration<'a> {
+pub struct Declaration<'a> {
+    pair: Option<Pair<'a, Rule>>,
+    pub kind: DeclarationKind<'a>
+}
+
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub enum DeclarationKind<'a> {
     // Function(nombre, type, parametros, statements)
     Function(&'a str, Option<String>, Vec<Parameter<'a>>, Vec<Statement>),
     EmptyLine,
@@ -292,24 +300,54 @@ pub enum Declaration<'a> {
     Unknown(&'a str)
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub struct Parameter<'a> {
-    name: &'a str
+impl<'a> DeclarationKind<'a> {
+    fn to_declaration(&self) -> Declaration<'a> {
+        Declaration { pair: None, kind: self.clone() }
+    }
+
+    pub fn as_str(&self) -> String {
+        self.to_declaration().as_str()
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub enum Annotation<'a> {
+pub struct Parameter<'a> {
+    pair: Option<Pair<'a, Rule>>,
+    name: &'a str
+}
+
+impl Parameter<'_> {
+    pub fn from(name: &'_ str) -> Parameter {
+        Parameter { pair: None, name }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct Annotation<'a> {
+    pair: Option<Pair<'a, Rule>>,
+    kind: AnnotationKind<'a>
+}
+
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub enum AnnotationKind<'a> {
     Export,
     OnReady,
     ExportToolButton(&'a str)
 }
 
+impl<'a> AnnotationKind<'a> {
+    pub fn to_annotation(&self) -> Annotation<'a> {
+        Annotation { pair: None, kind: self.clone() }
+    }
+}
+
 impl Annotation<'_> {
     pub fn as_str(&self) -> String {
-        match self {
-            Annotation::Export => "@export".to_string(),
-            Annotation::OnReady => "@onready".to_string(),
-            Annotation::ExportToolButton(some_string) =>
+        match self.kind {
+            AnnotationKind::Export => "@export".to_string(),
+            AnnotationKind::OnReady => "@onready".to_string(),
+            AnnotationKind::ExportToolButton(some_string) =>
                 "@export_tool_button(\"".to_owned() + some_string + "\")",
         }
     }
@@ -317,8 +355,8 @@ impl Annotation<'_> {
 
 impl<'a> Declaration<'a> {
     pub fn as_str(&self) -> String {
-        match self {
-            Declaration::Function(name, return_type, parameters, statements) => {
+        match &self.kind {
+            DeclarationKind::Function(name, return_type, parameters, statements) => {
                 let identation = "\t";
                 let param_list = parameters
                     .iter()
@@ -340,20 +378,20 @@ impl<'a> Declaration<'a> {
                     body = function_body
                 )
             }
-            Declaration::EmptyLine => "".to_string(),
-            Declaration::Var(identifier, value, annotation) =>
+            DeclarationKind::EmptyLine => "".to_string(),
+            DeclarationKind::Var(identifier, value, annotation) =>
                 format!("{annotation}var {identifier} = {value}", identifier=identifier, value=value,annotation=annotation.clone().map(|x| x.as_str() + " ").unwrap_or("".to_string())),
-            Declaration::Unknown(string) => string.to_string(),
+            DeclarationKind::Unknown(string) => string.to_string(),
         }
     }
 
     pub fn toggle_annotation(&self, annotation: Annotation<'a>) -> Declaration<'a> {
-        match self {
-            Declaration::Var(identifier, value, Some(previous_annotation))
-                if *previous_annotation == annotation => Declaration::Var(
-                    identifier.to_string(), value, None),
-            Declaration::Var(identifier, value, _) =>
-                Declaration::Var(identifier.to_string(), value, Some(annotation)),
+        match self.kind.clone() {
+            DeclarationKind::Var(identifier, value, Some(previous_annotation))
+                if previous_annotation.kind == annotation.kind => DeclarationKind::Var(
+                    identifier.to_string(), value, None).to_declaration(),
+            DeclarationKind::Var(identifier, value, _) =>
+                DeclarationKind::Var(identifier.to_string(), value, Some(annotation)).to_declaration(),
             _ => self.clone()
         }
     }
@@ -404,7 +442,7 @@ mod tests {
             Program {
                 is_tool: false,
                 super_class: None,
-                declarations: vec![Declaration::Function("foo", None, vec![], vec![Statement::Pass])]
+                declarations: vec![DeclarationKind::Function("foo", None, vec![], vec![Statement::Pass]).to_declaration()]
             },
         );
     }
@@ -417,8 +455,8 @@ mod tests {
                 is_tool: false,
                 super_class: None,
                 declarations: vec![
-                    Declaration::Function("foo", None, vec![], vec![Statement::Pass]),
-                    Declaration::Function("bar", None, vec![], vec![Statement::Pass]),
+                    DeclarationKind::Function("foo", None, vec![], vec![Statement::Pass]).to_declaration(),
+                    DeclarationKind::Function("bar", None, vec![], vec![Statement::Pass]).to_declaration(),
                 ],
             },
         );
@@ -432,11 +470,11 @@ mod tests {
                 is_tool: false,
                 super_class: None,
                 declarations: vec![
-                    Declaration::Function(
-                        "foo", None, vec![], vec![Statement::Pass]),
-                    Declaration::EmptyLine,
-                    Declaration::Function(
-                        "bar", None, vec![], vec![Statement::Pass]),
+                    DeclarationKind::Function(
+                        "foo", None, vec![], vec![Statement::Pass]).to_declaration(),
+                    DeclarationKind::EmptyLine.to_declaration(),
+                    DeclarationKind::Function(
+                        "bar", None, vec![], vec![Statement::Pass]).to_declaration(),
                 ]
             })
     }
@@ -448,7 +486,7 @@ mod tests {
             Program {
                 is_tool: false,
                 super_class: None,
-                declarations: vec![Declaration::Function("foo", None, vec![], vec![Statement::Pass])]
+                declarations: vec![DeclarationKind::Function("foo", None, vec![], vec![Statement::Pass]).to_declaration()]
             },
         );
     }
@@ -456,7 +494,7 @@ mod tests {
     #[test]
     fn test_function_to_string() {
         assert_eq!(
-            Declaration::Function("foo", None, vec![], vec![Statement::Pass]).as_str(),
+            DeclarationKind::Function("foo", None, vec![], vec![Statement::Pass]).as_str(),
             "func foo():\n\tpass"
         )
     }
@@ -471,8 +509,8 @@ mod tests {
                 super_class: None,
                 declarations: 
                     vec![
-                        Declaration::Function("foo", None, vec![], vec![Statement::Pass]),
-                        Declaration::Function("bar", None, vec![], vec![Statement::Pass])
+                        DeclarationKind::Function("foo", None, vec![], vec![Statement::Pass]).to_declaration(),
+                        DeclarationKind::Function("bar", None, vec![], vec![Statement::Pass]).to_declaration()
                     ]
             }.as_str(),
             "func foo():\n\tpass\nfunc bar():\n\tpass\n"
@@ -487,9 +525,9 @@ mod tests {
                 super_class: None,
                 declarations: 
                 vec![
-                    Declaration::EmptyLine,
-                    Declaration::Function("foo", None, vec![], vec![Statement::Pass]),
-                    Declaration::Function("bar", None, vec![], vec![Statement::Pass])
+                    DeclarationKind::EmptyLine.to_declaration(),
+                    DeclarationKind::Function("foo", None, vec![], vec![Statement::Pass]).to_declaration(),
+                    DeclarationKind::Function("bar", None, vec![], vec![Statement::Pass]).to_declaration()
                 ]
             }.as_str(),
             "\nfunc foo():\n\tpass\nfunc bar():\n\tpass\n"
@@ -498,50 +536,50 @@ mod tests {
 
     #[test]
     fn move_function_down() {
-        let foo = Declaration::Function("foo", None, vec![], vec![Statement::Pass]);
-        let bar = Declaration::Function("bar", None, vec![], vec![Statement::Pass]);
+        let foo = || DeclarationKind::Function("foo", None, vec![], vec![Statement::Pass]).to_declaration();
+        let bar = || DeclarationKind::Function("bar", None, vec![], vec![Statement::Pass]).to_declaration();
         assert_eq!(
             Program {
                 is_tool: false,
                 super_class: None,
-                declarations: vec![foo.clone(), bar.clone()] }.move_declaration_down(foo.clone()),
+                declarations: vec![foo(), bar()] }.move_declaration_down(foo()),
             Program {
                 is_tool: false,
                 super_class: None,
-                declarations: vec![bar.clone(), foo.clone()] }
+                declarations: vec![bar(), foo()] }
         )
     }
 
     #[test]
     fn move_function_down_when_it_is_the_last_function_adds_a_newline_before_it() {
-        let foo = Declaration::Function("foo", None, vec![], vec![Statement::Pass]);
-        let bar = Declaration::Function("bar", None, vec![], vec![Statement::Pass]);
+        let foo = || DeclarationKind::Function("foo", None, vec![], vec![Statement::Pass]).to_declaration();
+        let bar = || DeclarationKind::Function("bar", None, vec![], vec![Statement::Pass]).to_declaration();
         assert_eq!(
             Program {
                 is_tool: false,
                 super_class: None,
-                declarations: vec![foo.clone(), bar.clone()] }.move_declaration_down(bar.clone()
+                declarations: vec![foo(), bar()] }.move_declaration_down(bar()
             ),
             Program {
                 is_tool: false,
                 super_class: None,
-                declarations: vec![foo.clone(), Declaration::EmptyLine, bar.clone()] }
+                declarations: vec![foo(), DeclarationKind::EmptyLine.to_declaration(), bar()] }
         )
     }
 
     #[test]
     fn move_function_up_when_it_is_the_first_function_leaves_the_program_as_it_is() {
-        let foo = Declaration::Function("foo", None, vec![], vec![Statement::Pass]);
-        let bar = Declaration::Function("bar", None, vec![], vec![Statement::Pass]);
+        let foo = || DeclarationKind::Function("foo", None, vec![], vec![Statement::Pass]).to_declaration();
+        let bar = || DeclarationKind::Function("bar", None, vec![], vec![Statement::Pass]).to_declaration();
         assert_eq!(
             Program {
                 is_tool: false,
                 super_class: None,
-                declarations: vec![foo.clone(), bar.clone()] }.move_declaration_up(foo.clone()
+                declarations: vec![foo(), bar()] }.move_declaration_up(foo()
             ),
             Program {
                 is_tool: false,
-                declarations: vec![foo.clone(), bar.clone()],
+                declarations: vec![foo(), bar()],
                 super_class: None,
             }
         )
@@ -549,17 +587,17 @@ mod tests {
 
     #[test]
     fn move_function_down_when_there_is_an_empty_line_between_functions_moves_the_function_into_the_empty_line() {
-        let foo = || Declaration::Function("foo", None, vec![], vec![Statement::Pass]);
-        let bar = || Declaration::Function("bar", None, vec![], vec![Statement::Pass]);
+        let foo = || DeclarationKind::Function("foo", None, vec![], vec![Statement::Pass]).to_declaration();
+        let bar = || DeclarationKind::Function("bar", None, vec![], vec![Statement::Pass]).to_declaration();
         assert_eq!(
             Program {
                 is_tool: false,
-                declarations: vec![foo(), Declaration::EmptyLine, bar()],
+                declarations: vec![foo(), DeclarationKind::EmptyLine.to_declaration(), bar()],
                 super_class: None,
             }.move_declaration_down(foo()),
             Program {
                 is_tool: false,
-                declarations: vec![Declaration::EmptyLine, foo(), bar()],
+                declarations: vec![DeclarationKind::EmptyLine.to_declaration(), foo(), bar()],
                 super_class: None,
             }
         )
@@ -609,7 +647,7 @@ mod tests {
             "var x = 2",
             Program {
                 is_tool: false,
-                declarations: vec![Declaration::Var("x".to_string(),"2",None)],
+                declarations: vec![DeclarationKind::Var("x".to_string(),"2",None).to_declaration()],
                 super_class: None
             }
         )
@@ -621,7 +659,7 @@ mod tests {
             "var _x = 2",
             Program {
                 is_tool: false,
-                declarations: vec![Declaration::Var("_x".to_string(),"2",None)],
+                declarations: vec![DeclarationKind::Var("_x".to_string(),"2",None).to_declaration()],
                 super_class: None
             }
         )
@@ -634,7 +672,7 @@ mod tests {
             Program {
                 is_tool: false,
                 super_class: None,
-                declarations: vec![Declaration::Var("x".to_string(),"2",Some(Annotation::Export))]
+                declarations: vec![DeclarationKind::Var("x".to_string(),"2",Some(AnnotationKind::Export.to_annotation())).to_declaration()]
             }
         )
     }
@@ -642,16 +680,16 @@ mod tests {
     #[test]
     fn toggle_export_annotation_adds_export_if_var_declaration_doesnt_has_it() {
         assert_eq!(
-            Declaration::Var("x".to_string(),"2",None).toggle_annotation(Annotation::Export),
-            Declaration::Var("x".to_string(),"2",Some(Annotation::Export))
+            DeclarationKind::Var("x".to_string(),"2",None).to_declaration().toggle_annotation(AnnotationKind::Export.to_annotation()),
+            DeclarationKind::Var("x".to_string(),"2",Some(AnnotationKind::Export.to_annotation())).to_declaration()
         )
     }
 
     #[test]
     fn toggle_export_annotation_changes_annotation_to_export_if_it_is_a_different_one() {
         assert_eq!(
-            Declaration::Var("x".to_string(),"2",Some(Annotation::OnReady)).toggle_annotation(Annotation::Export),
-            Declaration::Var("x".to_string(),"2",Some(Annotation::Export))
+            DeclarationKind::Var("x".to_string(),"2",Some(AnnotationKind::OnReady.to_annotation())).to_declaration().toggle_annotation(AnnotationKind::Export.to_annotation()),
+            DeclarationKind::Var("x".to_string(),"2",Some(AnnotationKind::Export.to_annotation())).to_declaration()
         )
     }
 
@@ -659,8 +697,8 @@ mod tests {
     #[test]
     fn toggle_export_annotation_removes_annotation_if_it_has_export() {
         assert_eq!(
-            Declaration::Var("x".to_string(),"2",Some(Annotation::Export)).toggle_annotation(Annotation::Export),
-            Declaration::Var("x".to_string(),"2",None)
+            DeclarationKind::Var("x".to_string(),"2",Some(AnnotationKind::Export.to_annotation())).to_declaration().toggle_annotation(AnnotationKind::Export.to_annotation()),
+            DeclarationKind::Var("x".to_string(),"2",None).to_declaration()
         )
     }
 
@@ -673,7 +711,7 @@ mod tests {
                 super_class: None,
                 declarations:
                     vec![
-                        Declaration::Function("foo", None, vec![], vec![Statement::Pass])
+                        DeclarationKind::Function("foo", None, vec![], vec![Statement::Pass]).to_declaration()
                         ]
             },
         )
@@ -687,7 +725,7 @@ mod tests {
                 super_class: None,
                 declarations:
                     vec![
-                        Declaration::Function("foo", None, vec![], vec![Statement::Pass])
+                        DeclarationKind::Function("foo", None, vec![], vec![Statement::Pass]).to_declaration()
                         ]
             }.as_str(),
             "@tool\nfunc foo():\n\tpass\n"
@@ -733,7 +771,7 @@ mod tests {
             Program {
                 is_tool: true,
                 super_class: Some("Node2D".to_owned()),
-                declarations: vec![Declaration::Function("foo", None, vec![], vec![Statement::Pass])]
+                declarations: vec![DeclarationKind::Function("foo", None, vec![], vec![Statement::Pass]).to_declaration()]
             });
     }
 
@@ -742,7 +780,7 @@ mod tests {
         let program_code = Program {
             is_tool: true,
             super_class: Some("Node2D".to_owned()),
-            declarations: vec![Declaration::Function("foo", None, vec![], vec![Statement::Pass])]
+            declarations: vec![DeclarationKind::Function("foo", None, vec![], vec![Statement::Pass]).to_declaration()]
         }.as_str();
 
         assert_eq!(
@@ -766,12 +804,12 @@ mod tests {
                 is_tool: true,
                 super_class: Some("Node".to_owned()),
                 declarations: vec![
-                    Declaration::Var(
+                    DeclarationKind::Var(
                         "_foo".to_string(),
                         "foo",
-                        Some(Annotation::ExportToolButton("Bleh"))
-                    ),
-                    Declaration::Function("foo", None, vec![],  vec![Statement::Pass])
+                        Some(AnnotationKind::ExportToolButton("Bleh").to_annotation())
+                    ).to_declaration(),
+                    DeclarationKind::Function("foo", None, vec![],  vec![Statement::Pass]).to_declaration()
                 ]
             }
         );
@@ -783,12 +821,12 @@ mod tests {
                 is_tool: true,
                 super_class: Some("Node".to_owned()),
                 declarations: vec![
-                    Declaration::Function("foo", None, vec![], vec![Statement::Pass])
+                    DeclarationKind::Function("foo", None, vec![], vec![Statement::Pass]).to_declaration()
                 ]
             };
 
         let refactored_program = program.toggle_tool_button(
-            Declaration::Function("foo", None, vec![], vec![Statement::Pass])
+            DeclarationKind::Function("foo", None, vec![], vec![Statement::Pass]).to_declaration()
         );
 
         assert_eq!(
@@ -797,8 +835,8 @@ mod tests {
                 is_tool: true,
                 super_class: Some("Node".to_owned()),
                 declarations: vec![
-                    Declaration::Var("_foo".to_string(),"foo",Some(Annotation::ExportToolButton("foo"))),
-                    Declaration::Function("foo", None, vec![], vec![Statement::Pass])
+                    DeclarationKind::Var("_foo".to_string(),"foo",Some(AnnotationKind::ExportToolButton("foo").to_annotation())).to_declaration(),
+                    DeclarationKind::Function("foo", None, vec![], vec![Statement::Pass]).to_declaration()
                 ]
             });
     }
@@ -826,13 +864,13 @@ mod tests {
             is_tool: true,
             super_class: Some("Node".to_owned()),
             declarations: vec![
-                Declaration::Var("_foo".to_string(),"foo",Some(Annotation::ExportToolButton("foo"))),
-                Declaration::Function("foo", None, vec![], vec![Statement::Pass])
+                DeclarationKind::Var("_foo".to_string(),"foo",Some(AnnotationKind::ExportToolButton("foo").to_annotation())).to_declaration(),
+                DeclarationKind::Function("foo", None, vec![], vec![Statement::Pass]).to_declaration()
             ]
         };
 
         let refactored_program = program.toggle_tool_button(
-            Declaration::Function("foo", None, vec![], vec![Statement::Pass])
+            DeclarationKind::Function("foo", None, vec![], vec![Statement::Pass]).to_declaration()
         );
 
         assert_eq!(
@@ -841,7 +879,7 @@ mod tests {
                 is_tool: true,
                 super_class: Some("Node".to_owned()),
                 declarations: vec![
-                    Declaration::Function("foo", None, vec![], vec![Statement::Pass])
+                    DeclarationKind::Function("foo", None, vec![], vec![Statement::Pass]).to_declaration()
                 ]
             }
         )
@@ -872,10 +910,10 @@ mod tests {
                 is_tool: false,
                 super_class: None,
                 declarations: vec![
-                    Declaration::Function("foo", None, vec![], vec![Statement::Pass]),
-                    Declaration::EmptyLine,
-                    Declaration::Unknown("saracatunga = 3 + 7"),
-                    Declaration::Unknown("$coso.3")
+                    DeclarationKind::Function("foo", None, vec![], vec![Statement::Pass]).to_declaration(),
+                    DeclarationKind::EmptyLine.to_declaration(),
+                    DeclarationKind::Unknown("saracatunga = 3 + 7").to_declaration(),
+                    DeclarationKind::Unknown("$coso.3").to_declaration()
                 ]
             });
     }
@@ -896,10 +934,10 @@ mod tests {
             is_tool: false,
             super_class: None,
             declarations: vec![
-                Declaration::Function("foo", None, vec![], vec![
+                DeclarationKind::Function("foo", None, vec![], vec![
                     Statement::Pass,
                     Statement::Unknown("saracatunga = 3 + 7".to_string())
-                ])
+                ]).to_declaration()
             ]
         });
     }
@@ -913,14 +951,14 @@ mod tests {
             is_tool: false,
             super_class: None,
             declarations: vec![
-                Declaration::Function("foo",
+                DeclarationKind::Function("foo",
                 None,
                 vec![
-                    Parameter { name: "arg1" },
-                    Parameter { name: "arg2" }],
+                    Parameter { pair: None, name: "arg1" },
+                    Parameter { pair: None, name: "arg2" }],
                 vec![
                     Statement::Pass
-                ])
+                ]).to_declaration()
             ]
         });
     }
@@ -931,14 +969,14 @@ mod tests {
             is_tool: false,
             super_class: None,
             declarations: vec![
-                Declaration::Function("foo",
+                DeclarationKind::Function("foo",
                 None,
                 vec![
-                    Parameter { name: "arg1" },
-                    Parameter { name: "arg2" }],
+                    Parameter { pair: None, name: "arg1" },
+                    Parameter { pair: None, name: "arg2" }],
                 vec![
                     Statement::Pass
-                ])
+                ]).to_declaration()
             ]
         };
 
@@ -961,14 +999,14 @@ mod tests {
             is_tool: false,
             super_class: None,
             declarations: vec![
-                Declaration::Function("foo",
+                DeclarationKind::Function("foo",
                 Some("String".to_string()),
                 vec![
-                    Parameter { name: "arg1" },
-                    Parameter { name: "arg2" }],
+                    Parameter { pair: None, name: "arg1" },
+                    Parameter { pair: None, name: "arg2" }],
                 vec![
                     Statement::Pass
-                ])
+                ]).to_declaration()
             ]
         });
     }
@@ -979,14 +1017,14 @@ mod tests {
             is_tool: false,
             super_class: None,
             declarations: vec![
-                Declaration::Function("foo",
+                DeclarationKind::Function("foo",
                 Some("String".to_string()),
                 vec![
-                    Parameter { name: "arg1" },
-                    Parameter { name: "arg2" }],
+                    Parameter { pair: None, name: "arg1" },
+                    Parameter { pair: None, name: "arg2" }],
                 vec![
                     Statement::Pass
-                ])
+                ]).to_declaration()
             ]
         };
 
@@ -1019,7 +1057,7 @@ mod tests {
     fn an_invalid_program_first_error_is_its_first_unknown() {
         let program = GDScriptParser::parse_to_program("function foo():\n\tpass");
 
-        assert_eq!(Some(Declaration::Unknown("function foo():")), program.first_error());
+        assert_eq!(Some(DeclarationKind::Unknown("function foo():").to_declaration()), program.first_error());
     }
 
     #[test]
@@ -1030,9 +1068,22 @@ mod tests {
             is_tool: false,
             super_class: None,
             declarations: vec![
-                Declaration::Function("__f_o_o__", None, vec![], vec![Statement::Pass]),
-                Declaration::Var("_b_a_r_".to_string(), "2", None)
+                DeclarationKind::Function("__f_o_o__", None, vec![], vec![Statement::Pass]).to_declaration(),
+                DeclarationKind::Var("_b_a_r_".to_string(), "2", None).to_declaration()
             ]
         })
     }
+
+    // #[test]
+    // fn extract_function_creates_a_function_from_some_statements() {
+    //     let input = "func foo():\n\tpass\n";
+
+    //     let program = GDScriptParser::try_parse_to_program(input);
+    //     let refactored_program = program.extract_to_function(vec![2], "bar");
+
+    //     assert_eq!(
+    //         refactored_program.as_str(),
+    //         "func foo():\n\tself.bar()\nfunc bar():\n\tpass\n";
+    //     )
+    // }
 }

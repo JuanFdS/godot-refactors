@@ -29,6 +29,11 @@ unique_name_in_owner = true
 layout_mode = 2
 text = "@tool_button"
 
+[node name="ExtractFunction" type="Button" parent="PanelContainer/HBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Extract Function"
+
 [node name="Texto" type="Label" parent="PanelContainer/HBoxContainer"]
 unique_name_in_owner = true
 layout_mode = 2

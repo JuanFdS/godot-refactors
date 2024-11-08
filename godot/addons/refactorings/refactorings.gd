@@ -100,6 +100,17 @@ func _input(event):
 			spawn_tooltip()
 
 
+func extract_function():
+	var code_edit = _code_edit()
+	var statements = code_edit.get_selected_text()
+	var previous_column = code_edit.get_caret_column()
+	var previous_line = code_edit.get_caret_line()
+	mi_parser.extract_function(code_edit.text, statements, "fOO")
+	code_edit.grab_focus()
+	code_edit.set_caret_column(previous_column)
+	code_edit.set_caret_line(previous_line)
+
+
 func spawn_tooltip():
 	var code_edit = _code_edit()
 	if(is_instance_valid(refactor_tooltip)):

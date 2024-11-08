@@ -1,4 +1,4 @@
-use coso::{Annotation, Declaration, GDScriptParser};
+use coso::{Annotation, AnnotationKind, Declaration, DeclarationKind, GDScriptParser};
 mod coso;
 use godot::prelude::*;
 
@@ -29,7 +29,7 @@ impl MiParser {
     #[func]
     fn toggle_export(&self, linea: String) -> GString {
         let var_declaration = GDScriptParser::parse_to_declaration(&linea);
-        let refactored_declaration = var_declaration.toggle_annotation(Annotation::Export);
+        let refactored_declaration = var_declaration.toggle_annotation(AnnotationKind::Export.to_annotation());
 
         GString::from(refactored_declaration.as_str())
     }
@@ -64,8 +64,8 @@ impl MiParser {
     fn function_at_line(&self, line: i32, archivo: String) -> GString {
         let donde_empieza = archivo.lines().skip(line as usize).collect::<Vec<&str>>().join("\n");
 
-        match GDScriptParser::parse_to_declaration(&donde_empieza) {
-            f @ Declaration::Function(_, _, _, _) => GString::from(f.as_str()),
+        match GDScriptParser::parse_to_declaration(&donde_empieza).kind {
+            f @ DeclarationKind::Function(_, _, _, _) => GString::from(f.as_str()),
             _ => GString::from("")
         }
     }
