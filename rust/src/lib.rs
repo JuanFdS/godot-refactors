@@ -27,6 +27,26 @@ impl MiParser {
     }
 
     #[func]
+    fn extract_variable(
+        &self,
+        input: String,
+        start_line: i32,
+        start_column: i32,
+        end_line: i32,
+        end_column: i32,
+        variable_name: String) -> GString {
+        let program = GDScriptParser::parse_to_program(input.as_str());
+        
+        GString::from(
+            program.extract_variable(
+                (start_line as usize + 1, start_column as usize + 1),
+                 (end_line as usize + 1, end_column as usize + 1), 
+                 variable_name.as_str()
+                ).as_str()
+        )
+    }
+
+    #[func]
     fn toggle_export(&self, linea: String) -> GString {
         let var_declaration = GDScriptParser::parse_to_declaration(&linea);
         let refactored_declaration = var_declaration.toggle_annotation(AnnotationKind::Export.to_annotation());
