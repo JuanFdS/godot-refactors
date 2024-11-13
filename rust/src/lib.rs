@@ -1,6 +1,13 @@
-use coso::{Annotation, AnnotationKind, Declaration, DeclarationKind, GDScriptParser};
-mod coso;
+mod refactorings;
+mod tests;
+mod godot_ast_types;
+mod parsing;
+mod printing;
+
+use godot_ast_types::*;
 use godot::prelude::*;
+use parsing::GDScriptParser;
+
 
 struct MyExtension;
 
@@ -19,7 +26,7 @@ impl MiParser {
     fn try_parse_program(&self, programa: String) -> Array<GString> {
         match GDScriptParser::try_parse_to_program(&programa) {
             Ok(program) => {
-                program.all_errors().iter().map(|declaration| GString::from(declaration.as_str()))
+                program.all_errors().iter().map(|declaration| GString::from(declaration.to_string()))
                     .collect::<Array<GString>>()
             },
             Err(error) => array![GString::from(error.line())],
@@ -42,7 +49,7 @@ impl MiParser {
                 (start_line as usize + 1, start_column as usize + 1),
                  (end_line as usize + 1, end_column as usize + 1), 
                  variable_name.as_str()
-                ).as_str()
+                ).to_string()
         )
     }
 
@@ -51,7 +58,7 @@ impl MiParser {
         let var_declaration = GDScriptParser::parse_to_declaration(&linea);
         let refactored_declaration = var_declaration.toggle_annotation(AnnotationKind::Export.to_annotation());
 
-        GString::from(refactored_declaration.as_str())
+        GString::from(refactored_declaration.to_string())
     }
     #[func]
     fn bajar(&self, texto_seleccionado: String, todo_el_archivo: String) -> GString {
@@ -61,7 +68,7 @@ impl MiParser {
         let refactored_program = program.move_declaration_down(function);
 
 
-        GString::from(refactored_program.as_str())
+        GString::from(refactored_program.to_string())
     }
     #[func]
     fn subir(&self, texto_seleccionado: String, todo_el_archivo: String) -> GString {
@@ -70,7 +77,7 @@ impl MiParser {
 
         let refactored_program = program.move_declaration_up(function);
 
-        GString::from(refactored_program.as_str())
+        GString::from(refactored_program.to_string())
     }
     #[func]
     fn toggle_tool_button(&self, texto_seleccionado: String, todo_el_archivo: String) -> GString {
@@ -78,7 +85,7 @@ impl MiParser {
         let function = GDScriptParser::parse_to_declaration(&texto_seleccionado);
         let refactored_program = program.toggle_tool_button(function);
 
-        GString::from(refactored_program.as_str())
+        GString::from(refactored_program.to_string())
     }
     #[func]
     fn function_at_line(&self, line: i32, archivo: String) -> GString {
