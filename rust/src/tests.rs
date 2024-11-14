@@ -1,5 +1,13 @@
 use crate::godot_ast_types::*;
 
+fn statement_pass<'a>() -> Statement<'a> {
+    Statement { pair: None, kind: StatementKind::Pass }
+}
+
+fn statement_unknown<'a>(content: String) -> Statement<'a> {
+    Statement { pair: None, kind: StatementKind::Unknown(content) }
+}
+
 fn dec_function<'a>(
     function_name: &'a str,
     function_type: Option<String>,
@@ -80,7 +88,7 @@ mod tests {
             Program {
                 is_tool: false,
                 super_class: None,
-                declarations: vec![dec_function("foo", None, vec![], vec![Statement::Pass])],
+                declarations: vec![dec_function("foo", None, vec![], vec![statement_pass()])],
             },
         );
     }
@@ -119,6 +127,20 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
+    fn test_program_extract_variable_lets_me_extract_a_subexpression() {
+        let program = GDScriptParser::parse_to_program("func foo():\n\t2+3\n");
+
+        let new_program = program.extract_variable((2, 0), (2, 3), "y");
+
+        assert_program_prints_to(new_program, "
+func foo():
+\tvar y = 2
+y+3
+");
+    }
+
+    #[test]
     fn test_program_with_two_functions() {
         assert_parse_eq(
             "func foo():\n    pass\nfunc bar():\n    pass",
@@ -126,8 +148,8 @@ mod tests {
                 is_tool: false,
                 super_class: None,
                 declarations: vec![
-                    dec_function("foo", None, vec![], vec![Statement::Pass]),
-                    dec_function("bar", None, vec![], vec![Statement::Pass]),
+                    dec_function("foo", None, vec![], vec![statement_pass()]),
+                    dec_function("bar", None, vec![], vec![statement_pass()]),
                 ],
             },
         );
@@ -141,9 +163,9 @@ mod tests {
                 is_tool: false,
                 super_class: None,
                 declarations: vec![
-                    dec_function("foo", None, vec![], vec![Statement::Pass]),
+                    dec_function("foo", None, vec![], vec![statement_pass()]),
                     dec_empty_line(),
-                    dec_function("bar", None, vec![], vec![Statement::Pass]),
+                    dec_function("bar", None, vec![], vec![statement_pass()]),
                 ],
             },
         )
@@ -156,7 +178,7 @@ mod tests {
             Program {
                 is_tool: false,
                 super_class: None,
-                declarations: vec![dec_function("foo", None, vec![], vec![Statement::Pass])],
+                declarations: vec![dec_function("foo", None, vec![], vec![statement_pass()])],
             },
         );
     }
@@ -164,7 +186,7 @@ mod tests {
     #[test]
     fn test_function_to_string() {
         assert_eq!(
-            dec_function("foo", None, vec![], vec![Statement::Pass]).to_string(),
+            dec_function("foo", None, vec![], vec![statement_pass()]).to_string(),
             "func foo():\n\tpass".to_string()
         )
     }
@@ -176,8 +198,8 @@ mod tests {
                 is_tool: false,
                 super_class: None,
                 declarations: vec![
-                    dec_function("foo", None, vec![], vec![Statement::Pass]),
-                    dec_function("bar", None, vec![], vec![Statement::Pass]),
+                    dec_function("foo", None, vec![], vec![statement_pass()]),
+                    dec_function("bar", None, vec![], vec![statement_pass()]),
                 ],
             },
             "func foo():\n\tpass\nfunc bar():\n\tpass\n",
@@ -192,8 +214,8 @@ mod tests {
                 super_class: None,
                 declarations: vec![
                     dec_empty_line(),
-                    dec_function("foo", None, vec![], vec![Statement::Pass]),
-                    dec_function("bar", None, vec![], vec![Statement::Pass]),
+                    dec_function("foo", None, vec![], vec![statement_pass()]),
+                    dec_function("bar", None, vec![], vec![statement_pass()]),
                 ],
             }.to_string(),
             "
@@ -207,8 +229,8 @@ func bar():
 
     #[test]
     fn move_function_down() {
-        let foo = || dec_function("foo", None, vec![], vec![Statement::Pass]);
-        let bar = || dec_function("bar", None, vec![], vec![Statement::Pass]);
+        let foo = || dec_function("foo", None, vec![], vec![statement_pass()]);
+        let bar = || dec_function("bar", None, vec![], vec![statement_pass()]);
         assert_eq!(
             Program {
                 is_tool: false,
@@ -226,8 +248,8 @@ func bar():
 
     #[test]
     fn move_function_down_when_it_is_the_last_function_adds_a_newline_before_it() {
-        let foo = || dec_function("foo", None, vec![], vec![Statement::Pass]);
-        let bar = || dec_function("bar", None, vec![], vec![Statement::Pass]);
+        let foo = || dec_function("foo", None, vec![], vec![statement_pass()]);
+        let bar = || dec_function("bar", None, vec![], vec![statement_pass()]);
         assert_eq!(
             Program {
                 is_tool: false,
@@ -245,8 +267,8 @@ func bar():
 
     #[test]
     fn move_function_up_when_it_is_the_first_function_leaves_the_program_as_it_is() {
-        let foo = || dec_function("foo", None, vec![], vec![Statement::Pass]);
-        let bar = || dec_function("bar", None, vec![], vec![Statement::Pass]);
+        let foo = || dec_function("foo", None, vec![], vec![statement_pass()]);
+        let bar = || dec_function("bar", None, vec![], vec![statement_pass()]);
         assert_eq!(
             Program {
                 is_tool: false,
@@ -265,8 +287,8 @@ func bar():
     #[test]
     fn move_function_down_when_there_is_an_empty_line_between_functions_moves_the_function_into_the_empty_line(
     ) {
-        let foo = || dec_function("foo", None, vec![], vec![Statement::Pass]);
-        let bar = || dec_function("bar", None, vec![], vec![Statement::Pass]);
+        let foo = || dec_function("foo", None, vec![], vec![statement_pass()]);
+        let bar = || dec_function("bar", None, vec![], vec![statement_pass()]);
         assert_eq!(
             Program {
                 is_tool: false,
@@ -305,7 +327,12 @@ func foo():
     #[test]
     fn moving_function_around_when_there_are_multiple_empty_lines() {
         let program =
-            GDScriptParser::parse_to_program("func foo():\n\tpass\n\nfunc bar():\n\tpass");
+            GDScriptParser::parse_to_program("
+func foo():
+\tpass
+
+func bar():
+\tpass");
 
         let foo_function = || GDScriptParser::parse_to_declaration("func foo():\n\tpass");
 
@@ -314,6 +341,7 @@ func foo():
         assert_eq!(
             program_with_foo_one_time_down.to_string().as_str(),
             "
+
 func foo():
 \tpass
 func bar():
@@ -325,7 +353,13 @@ func bar():
             program_with_foo_one_time_down.move_declaration_down(foo_function());
         assert_eq!(
             program_with_foo_two_times_down.to_string().as_str(),
-            "\nfunc bar():\n\tpass\nfunc foo():\n\tpass\n"
+            "
+
+func bar():
+\tpass
+func foo():
+\tpass
+"
         )
     }
 
@@ -398,7 +432,7 @@ func bar():
             Program {
                 is_tool: true,
                 super_class: None,
-                declarations: vec![dec_function("foo", None, vec![], vec![Statement::Pass])],
+                declarations: vec![dec_function("foo", None, vec![], vec![statement_pass()])],
             },
         )
     }
@@ -409,7 +443,7 @@ func bar():
             Program {
                 is_tool: true,
                 super_class: None,
-                declarations: vec![dec_function("foo", None, vec![], vec![Statement::Pass])]
+                declarations: vec![dec_function("foo", None, vec![], vec![statement_pass()])]
             }
             .to_string()
             .as_str(),
@@ -458,7 +492,7 @@ func bar():
             Program {
                 is_tool: true,
                 super_class: Some("Node2D".to_owned()),
-                declarations: vec![dec_function("foo", None, vec![], vec![Statement::Pass])],
+                declarations: vec![dec_function("foo", None, vec![], vec![statement_pass()])],
             },
         );
     }
@@ -468,7 +502,7 @@ func bar():
         let program = Program {
             is_tool: true,
             super_class: Some("Node2D".to_owned()),
-            declarations: vec![dec_function("foo", None, vec![], vec![Statement::Pass])],
+            declarations: vec![dec_function("foo", None, vec![], vec![statement_pass()])],
         };
 
         assert_program_prints_to(program, "@tool\nextends Node2D\nfunc foo():\n\tpass\n")
@@ -494,7 +528,7 @@ func bar():
                         "foo",
                         Some(annotation_export_tool_button("Bleh")),
                     ),
-                    dec_function("foo", None, vec![], vec![Statement::Pass]),
+                    dec_function("foo", None, vec![], vec![statement_pass()]),
                 ],
             },
         );
@@ -505,11 +539,11 @@ func bar():
         let program = Program {
             is_tool: true,
             super_class: Some("Node".to_owned()),
-            declarations: vec![dec_function("foo", None, vec![], vec![Statement::Pass])],
+            declarations: vec![dec_function("foo", None, vec![], vec![statement_pass()])],
         };
 
         let refactored_program =
-            program.toggle_tool_button(dec_function("foo", None, vec![], vec![Statement::Pass]));
+            program.toggle_tool_button(dec_function("foo", None, vec![], vec![statement_pass()]));
 
         assert_eq!(
             refactored_program,
@@ -522,7 +556,7 @@ func bar():
                         "foo",
                         Some(AnnotationKind::ExportToolButton("foo").to_annotation())
                     ),
-                    dec_function("foo", None, vec![], vec![Statement::Pass])
+                    dec_function("foo", None, vec![], vec![statement_pass()])
                 ]
             }
         );
@@ -553,19 +587,19 @@ func bar():
                     "foo",
                     Some(AnnotationKind::ExportToolButton("foo").to_annotation()),
                 ),
-                dec_function("foo", None, vec![], vec![Statement::Pass]),
+                dec_function("foo", None, vec![], vec![statement_pass()]),
             ],
         };
 
         let refactored_program =
-            program.toggle_tool_button(dec_function("foo", None, vec![], vec![Statement::Pass]));
+            program.toggle_tool_button(dec_function("foo", None, vec![], vec![statement_pass()]));
 
         assert_eq!(
             refactored_program,
             Program {
                 is_tool: true,
                 super_class: Some("Node".to_owned()),
-                declarations: vec![dec_function("foo", None, vec![], vec![Statement::Pass])]
+                declarations: vec![dec_function("foo", None, vec![], vec![statement_pass()])]
             }
         )
     }
@@ -592,7 +626,7 @@ func bar():
                 is_tool: false,
                 super_class: None,
                 declarations: vec![
-                    dec_function("foo", None, vec![], vec![Statement::Pass]),
+                    dec_function("foo", None, vec![], vec![statement_pass()]),
                     dec_empty_line(),
                     dec_unknown("saracatunga = 3 + 7"),
                     dec_unknown("$coso.3"),
@@ -622,8 +656,8 @@ func bar():
                     None,
                     vec![],
                     vec![
-                        Statement::Pass,
-                        Statement::Unknown("saracatunga = 3 + 7".to_string()),
+                        statement_pass(),
+                        statement_unknown("saracatunga = 3 + 7".to_string()),
                     ],
                 )],
             },
@@ -652,7 +686,7 @@ func bar():
                             name: "arg2",
                         },
                     ],
-                    vec![Statement::Pass],
+                    vec![statement_pass()],
                 )],
             },
         );
@@ -676,7 +710,7 @@ func bar():
                         name: "arg2",
                     },
                 ],
-                vec![Statement::Pass],
+                vec![statement_pass()],
             )],
         };
 
@@ -710,7 +744,7 @@ func bar():
                             name: "arg2",
                         },
                     ],
-                    vec![Statement::Pass],
+                    vec![statement_pass()],
                 )],
             },
         );
@@ -734,7 +768,7 @@ func bar():
                         name: "arg2",
                     },
                 ],
-                vec![Statement::Pass],
+                vec![statement_pass()],
             )],
         };
 
@@ -782,7 +816,7 @@ func bar():
                 is_tool: false,
                 super_class: None,
                 declarations: vec![
-                    dec_function("__f_o_o__", None, vec![], vec![Statement::Pass]),
+                    dec_function("__f_o_o__", None, vec![], vec![statement_pass()]),
                     dec_var("_b_a_r_".to_string(), "2", None),
                 ],
             },

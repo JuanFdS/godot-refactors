@@ -100,9 +100,11 @@ impl<'a> Program<'a> {
                     let statement_idx = start_line_column.0 - declaration.clone().pair.unwrap().line_col().0 - 1;
 
                     let mut new_statements = statements.clone();
-                    let old_expression = new_statements.replace_mut( statement_idx, |_| Statement::Unknown(variable_name.to_owned()));
-                    let new_statement = Statement::VarDeclaration(variable_name, old_expression.as_str());
-                    new_statements.insert(statement_idx, new_statement);
+                    let old_expression = new_statements.replace_mut( 
+                        statement_idx, |_| StatementKind::Unknown(variable_name.to_owned()).to_statement(None)
+                    );
+                    let new_statement = StatementKind::VarDeclaration(variable_name, old_expression.as_str());
+                    new_statements.insert(statement_idx, new_statement.to_statement(None));
                     let new_declaration = Declaration {
                         pair: None,
                         kind: DeclarationKind::Function(
@@ -156,7 +158,9 @@ impl<'a> Program<'a> {
     }
 
     pub fn move_declaration_down(&self, declaration: Declaration) -> Program {
-        let maybe_idx = self.declarations.iter().position(|x| x.kind == declaration.kind);
+        let maybe_idx = self.declarations.iter().position(
+            |x| x.kind == declaration.kind
+        );
         match maybe_idx {
             Some(idx) if idx + 1 == self.declarations.len() => {
                 let mut updated_declarations = self.declarations.clone();
@@ -327,7 +331,10 @@ impl<'a> Declaration<'a> {
             kind: {
                 let this = &self.kind;
                 match this {
-                    DeclarationKind::Function(_, _, _, _) => this.clone(),
+                    DeclarationKind::Function(fname, ftype, parameters, statements) => {
+                        let new_statements = statements.into_iter().map(|s| s.without_pairs()).collect();
+                        DeclarationKind::Function(fname, ftype.clone(), parameters.to_vec(), new_statements)
+                    },
                     DeclarationKind::EmptyLine => this.clone(),
                     DeclarationKind::Var(name, value, maybe_annotation) =>
                         DeclarationKind::Var(name.to_string(), value, maybe_annotation.clone().map(|annotation| {
@@ -344,11 +351,21 @@ impl<'a> Declaration<'a> {
 
 impl<'a> Statement<'a> {
     pub fn as_str(&self) -> String {
-        match self {
-            Statement::Pass => "pass".to_string(),
-            Statement::Unknown(string) => string.to_string(),
-            Statement::VarDeclaration(name, expression) => format!("var {name} = {expression}"),
+        match &self.kind {
+            StatementKind::Pass => "pass".to_string(),
+            StatementKind::Unknown(string) => string.to_string(),
+            StatementKind::VarDeclaration(name, expression) => format!("var {name} = {expression}"),
         }
+    }
+
+    pub fn without_pairs(&self) -> Statement<'a> {
+        Statement { pair: None, kind: self.kind.clone() }
+    }
+}
+
+impl<'a> StatementKind<'a> {
+    fn to_statement(&self, pair: Option<Pair<'a, Rule>>) -> Statement<'a> {
+        Statement { pair: pair, kind: self.clone() }
     }
 }
 

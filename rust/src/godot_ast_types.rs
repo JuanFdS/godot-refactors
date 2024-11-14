@@ -15,6 +15,7 @@ pub struct Declaration<'a> {
     pub kind: DeclarationKind<'a>
 }
 
+
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub enum DeclarationKind<'a> {
     // Function(nombre, type, parametros, statements)
@@ -51,8 +52,20 @@ pub enum AnnotationKind<'a> {
     ExportToolButton(&'a str)
 }
 
+#[derive(Debug, Eq, Clone)]
+pub struct Statement<'a> {
+    pub pair: Option<Pair<'a, Rule>>,
+    pub kind: StatementKind<'a>
+}
+
+impl<'a> PartialEq for Statement<'a> {
+    fn eq(&self, other: &Self) -> bool {
+        self.kind == other.kind
+    }
+}
+
 #[derive(Debug, Eq, PartialEq, Clone)]
-pub enum Statement<'a> {
+pub enum StatementKind<'a> {
     Pass,
     Unknown(String),
     VarDeclaration(&'a str, String)

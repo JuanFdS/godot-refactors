@@ -1,3 +1,4 @@
+use godot::classes::web_socket_peer::State;
 use pest::Parser;
 use pest_derive::Parser;
 use crate::godot_ast_types::*;
@@ -141,8 +142,11 @@ impl GDScriptParser {
 
     fn to_statement(parse_result: Pair<Rule>) -> Option<Statement> {
         match parse_result.as_rule() {
-            Rule::unknown => Some(Statement::Unknown(parse_result.as_span().as_str().to_owned())),
-            Rule::pass => Some(Statement::Pass),
+            Rule::unknown => Some(
+                Statement { pair: Some(parse_result.clone()), kind: StatementKind::Unknown(parse_result.as_span().as_str().to_owned()) }),
+            Rule::pass => Some(
+                Statement { pair: Some(parse_result), kind: StatementKind::Pass }
+            ),
             Rule::statement => Self::to_statement(parse_result.into_inner().next().unwrap()),
             _ => None,
         }
