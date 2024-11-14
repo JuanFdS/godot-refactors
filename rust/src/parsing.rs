@@ -1,4 +1,3 @@
-use godot::classes::web_socket_peer::State;
 use pest::Parser;
 use pest_derive::Parser;
 use crate::godot_ast_types::*;
