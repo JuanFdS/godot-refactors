@@ -9,4 +9,6 @@ var as_d = 2
 
 @export_tool_button("bar") var _bar = bar
 func bar():
-	pass
+	2+2
+	"holu"
+	2+2

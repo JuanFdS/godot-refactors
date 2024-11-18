@@ -5,11 +5,13 @@ const CodeEditWithRefactors = preload("res://code_edit_with_refactors.gd")
 const REFACTOR_TOOLTIP = preload("res://addons/refactorings/refactor_tooltip.tscn")
 
 @onready var indicador = %Indicador
-@onready var mi_parser = $MiParser
+@onready var mi_parser: MiParser = $MiParser
 var refactor_tooltip
 var detected_errors = []
 
 func _ready():
+	if Engine.is_editor_hint() and get_tree().edited_scene_root == self:
+		return
 	%Error.pressed.connect(func():
 		var code_edit = _code_edit()
 		var caret_idx = 0
@@ -31,7 +33,7 @@ func _ready():
 		var code_edit = _code_edit()
 		parse_script(code_edit)
 		if(not code_edit.gui_input.is_connected(self.handle_input_on_code_edit)):
-			code_edit.gui_input.connect(self.handle_input_on_code_edit)
+			code_edit.gui_input.connect(self.handle_input_on_code_edit.bind(code_edit))
 		if(not code_edit.text_changed.is_connected(self.on_code_text_changed)):
 			code_edit.text_changed.connect(self.on_code_text_changed.bind(code_edit))
 	)
@@ -52,7 +54,7 @@ func parse_script(code_edit: CodeEdit):
 			%OK.visible = false
 	detected_errors = errors
 
-func handle_input_on_code_edit(event: InputEvent):
+func handle_input_on_code_edit(event: InputEvent, code_edit: CodeEdit):
 	if event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_LEFT and event.is_released():
 			spawn_tooltip()
@@ -100,15 +102,18 @@ func _input(event):
 			spawn_tooltip()
 
 
-func extract_function():
+func extract_variable():
 	var code_edit = _code_edit()
-	var statements = code_edit.get_selected_text()
 	var previous_column = code_edit.get_caret_column()
 	var previous_line = code_edit.get_caret_line()
-	mi_parser.extract_function(code_edit.text, statements, "fOO")
-	code_edit.grab_focus()
-	code_edit.set_caret_column(previous_column)
-	code_edit.set_caret_line(previous_line)
+	var start_column = code_edit.get_selection_origin_column()
+	var start_line = code_edit.get_selection_origin_line()
+	var end_column = code_edit.get_selection_to_column()
+	var end_line = code_edit.get_selection_to_line()
+	var new_text = mi_parser.extract_variable(
+		code_edit.text, start_line, start_column, end_line, end_column, "asd"
+	)
+	code_edit.text = new_text
 
 
 func spawn_tooltip():

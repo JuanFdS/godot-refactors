@@ -16,16 +16,16 @@ func column_number() -> int:
 
 func _ready():
 	%ToggleExport.pressed.connect(func():
-		refactorings.toggle_export(line_number())
 		queue_free()
+		refactorings.toggle_export(line_number())
 	)
 	%ToggleToolButton.pressed.connect(func():
+		queue_free()
 		refactorings.toggle_tool_button(line_number())
-		queue_free()
 	)
-	%ExtractFunction.pressed.connect(func():
-		refactorings.extract_function()
+	%ExtractVariable.pressed.connect(func():
 		queue_free()
+		refactorings.extract_variable()
 	)
 
 

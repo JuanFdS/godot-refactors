@@ -21,7 +21,3 @@ RuakeLayer="*res://addons/ruake/core/RuakeLayer.tscn"
 [editor_plugins]
 
 enabled=PackedStringArray("res://addons/refactorings/plugin.cfg", "res://addons/ruake/plugin.cfg")
-
-[gui]
-
-timers/tooltip_delay_sec.editor_hint=0.1
