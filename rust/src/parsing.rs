@@ -1,3 +1,4 @@
+use godot::classes::web_socket_peer::State;
 use pest::Parser;
 use pest_derive::Parser;
 use crate::godot_ast_types::*;
@@ -146,8 +147,43 @@ impl GDScriptParser {
             Rule::pass => Some(
                 Statement { pair: Some(parse_result), kind: StatementKind::Pass }
             ),
+            Rule::expression => {
+                let sub_expression = Self::to_expression(parse_result.clone());
+                let statement_kind = match sub_expression.kind {
+                    ExpressionKind::Unknown(text) => StatementKind::Unknown(text),
+                    _ => StatementKind::Expression(sub_expression)
+                };
+
+                Some(Statement { pair: Some(parse_result), kind: statement_kind })
+            },
             Rule::statement => Self::to_statement(parse_result.into_inner().next().unwrap()),
             _ => None,
+        }
+    }
+
+    fn to_expression(parse_result: Pair<Rule>) -> Expression {
+        let string_to_literal_int = |str: &str| ExpressionKind::LiteralInt(str.parse::<usize>().unwrap());
+        let pair = Some(parse_result.clone());
+        let as_str = parse_result.as_span().as_str();
+        match &parse_result.as_rule() {
+            &Rule::literal_int =>
+                Expression { pair, kind: string_to_literal_int(parse_result.as_span().as_str()) },
+            &Rule::binary_operation => {
+                let mut parse_iterator = parse_result.clone().into_inner();
+                let lhs = Self::to_expression(parse_iterator.next().unwrap());
+                let operator = parse_iterator.next().unwrap().as_span().as_str();
+                let rhs = Self::to_expression(parse_iterator.next().unwrap());
+                Expression { pair, kind: ExpressionKind::BinaryOperation(
+                    Box::new(lhs), operator, Box::new(rhs))
+                }
+            },
+            &Rule::unknown => {
+                Expression { pair, kind: ExpressionKind::Unknown(parse_result.as_span().as_str().to_string()) }
+            },
+            &Rule::expression => {
+                Self::to_expression(parse_result.into_inner().next().unwrap())
+            }
+            _ => panic!()
         }
     }
 }

@@ -1,11 +1,27 @@
 use crate::godot_ast_types::*;
 
+fn expression_binary_op<'a>(a: Expression<'a>, op: &'a str, b: Expression<'a>) -> Expression<'a> {
+    Expression { pair: None, kind: ExpressionKind::BinaryOperation(Box::new(a), op, Box::new(b)) }
+}
+
+fn literal_int<'a>(number: usize) -> Expression<'a> {
+    Expression { pair: None, kind: ExpressionKind::LiteralInt(number) }
+}
+
+fn _statement_with_kind<'a>(kind: StatementKind<'a>) -> Statement<'a> {
+    kind.to_statement(None)
+}
+
+fn statement_expression<'a>(expression: Expression<'a>) -> Statement<'a> {
+    _statement_with_kind(StatementKind::Expression(expression))
+}
+
 fn statement_pass<'a>() -> Statement<'a> {
-    Statement { pair: None, kind: StatementKind::Pass }
+    _statement_with_kind(StatementKind::Pass)
 }
 
 fn statement_unknown<'a>(content: String) -> Statement<'a> {
-    Statement { pair: None, kind: StatementKind::Unknown(content) }
+    _statement_with_kind(StatementKind::Unknown(content))
 }
 
 fn dec_function<'a>(
@@ -52,16 +68,19 @@ fn annotation_export_tool_button<'a>(text: &'a str) -> Annotation<'a> {
 
 #[cfg(test)]
 mod tests {
+    use pretty_assertions::{assert_eq, assert_ne};
     use pest::Parser;
 
     use crate::parsing::{GDScriptParser, Rule};
 
     use super::*;
 
+    #[track_caller]
     fn assert_program_prints_to(program: Program, expected_text: &str) {
         assert_eq!(program.to_string().as_str(), expected_text.trim_start())
     }
 
+    #[track_caller]
     fn assert_parse_eq(input: &str, expected_result: Program) {
         let parse_result = GDScriptParser::parse(Rule::program, input)
             .expect("Malio sal el parseo")
@@ -74,6 +93,7 @@ mod tests {
         );
     }
 
+    #[track_caller]
     fn assert_parse_roundtrip(input: &str) {
         let parsed_program: Program<'_> = GDScriptParser::parse_to_program(input);
         let parsed_program_as_string = parsed_program.to_string();
@@ -97,23 +117,24 @@ mod tests {
     fn test_program_extract_variable() {
         let program = GDScriptParser::parse_to_program("func foo():\n\t2+2\n");
 
-        let new_program = program.extract_variable((2, 1), (2, 4), "coso");
+        let new_program = program.extract_variable((2, 2), (2, 4), "coso");
 
-        assert_program_prints_to(new_program, "func foo():\n\tvar coso = 2+2\n\tcoso\n");
+        assert_program_prints_to(new_program, "func foo():\n\tvar coso = 2 + 2\n\tcoso\n");
     }
 
     #[test]
+    #[ignore = "TODO: implementar envios de mensajes como expressiones"]
     fn test_program_extract_variable_when_the_part_to_extract_is_repeated_in_more_than_one_function(
     ) {
         let program = GDScriptParser::parse_to_program(
-            "func foo():\n\treturn 2+2\nfunc bar():\n\tself.foo()\n",
+            "func foo():\n\treturn 2 + 2\nfunc bar():\n\tself.foo()\n",
         );
 
-        let new_program = program.extract_variable((4, 0), (4, 4), "x");
+        let new_program = program.extract_variable((4, 2), (4, 4), "x");
 
         assert_program_prints_to(
             new_program,
-            "func foo():\n\treturn 2+2\nfunc bar():\n\tvar x = self.foo()\n\tx\n",
+            "func foo():\n\treturn 2 + 2\nfunc bar():\n\tvar x = self.foo()\n\tx\n",
         );
     }
 
@@ -121,22 +142,56 @@ mod tests {
     fn test_program_extract_variable_when_the_statement_is_at_the_end_of_the_function() {
         let program = GDScriptParser::parse_to_program("func foo():\n\t2+2\n\t3+5");
 
-        let new_program = program.extract_variable((3, 0), (3, 4), "y");
+        let new_program = program.extract_variable((3, 2), (3, 4), "y");
 
-        assert_program_prints_to(new_program, "func foo():\n\t2+2\n\tvar y = 3+5\n\ty\n");
+        assert_program_prints_to(new_program, "func foo():\n\t2 + 2\n\tvar y = 3 + 5\n\ty\n");
     }
 
     #[test]
-    #[ignore]
+    fn parse_expression_with_binary_operation_and_literal_numbers() {
+        let input = "func foo():\n\t2 + 3\n";
+        assert_parse_eq(input,
+            Program {
+                is_tool: false,
+                super_class: None,
+                declarations: vec![
+                    dec_function("foo", None, vec![], vec![
+                        statement_expression(
+                            expression_binary_op(
+                                literal_int(2), "+", literal_int(3)
+                            )
+                        )
+                    ])
+                ]
+            }
+        );
+
+        assert_parse_roundtrip(input);
+    }
+
+    #[test]
     fn test_program_extract_variable_lets_me_extract_a_subexpression() {
         let program = GDScriptParser::parse_to_program("func foo():\n\t2+3\n");
 
-        let new_program = program.extract_variable((2, 0), (2, 3), "y");
+        let new_program = program.extract_variable((2, 2), (2, 2), "y");
 
         assert_program_prints_to(new_program, "
 func foo():
 \tvar y = 2
-y+3
+\ty + 3
+");
+    }
+
+    #[test]
+    fn test_program_extract_variable_lets_me_extract_a_subexpression_even_if_its_the_rightmost_expression() {
+        let program = GDScriptParser::parse_to_program("func foo():\n\t2+3\n");
+
+        let new_program = program.extract_variable((2, 4), (2, 4), "y");
+
+        assert_program_prints_to(new_program, "
+func foo():
+\tvar y = 3
+\t2 + y
 ");
     }
 

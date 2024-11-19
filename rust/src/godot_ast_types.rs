@@ -68,5 +68,23 @@ impl<'a> PartialEq for Statement<'a> {
 pub enum StatementKind<'a> {
     Pass,
     Unknown(String),
-    VarDeclaration(&'a str, String)
+    VarDeclaration(&'a str, String),
+    Expression(Expression<'a>)
+}
+
+type RulePair<'a> = Option<Pair<'a, Rule>>;
+
+#[derive(Debug, Eq, PartialEq, Clone)]
+
+pub struct Expression<'a> {
+    pub pair: RulePair<'a>,
+    pub kind: ExpressionKind<'a>
+}
+
+#[derive(Debug, Eq, PartialEq, Clone)]
+
+pub enum ExpressionKind<'a> {
+    LiteralInt(usize),
+    BinaryOperation(Box<Expression<'a>>, &'a str, Box<Expression<'a>>),
+    Unknown(String),
 }

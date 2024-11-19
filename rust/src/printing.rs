@@ -56,3 +56,24 @@ impl Display for Declaration<'_> {
         write!(f, "{}", text)
     }
 }
+
+impl Display for Expression<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let text = self.kind.to_string();
+
+        write!(f, "{}", text)
+    }
+}
+
+impl Display for ExpressionKind<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let text = match &self {
+            ExpressionKind::LiteralInt(number) => number.to_string(),
+            ExpressionKind::BinaryOperation(expression, op, expression1) =>
+                format!("{expression} {op} {expression1}"),
+            ExpressionKind::Unknown(content) => content.to_string(),
+        };
+
+        write!(f, "{}", text)
+    }
+}
