@@ -144,7 +144,7 @@ mod tests {
     fn test_program_extract_variable() {
         let program = GDScriptParser::parse_to_program("func foo():\n\t2+2\n");
 
-        let new_program = program.extract_variable((2, 2), (2, 4), "coso");
+        let new_program = program.extract_variable((2, 2), (2, 4), "coso").0;
 
         assert_program_prints_to(new_program, "func foo():\n\tvar coso = 2 + 2\n\tcoso\n");
     }
@@ -204,7 +204,7 @@ mod tests {
             "func foo():\n\treturn 2 + 2\nfunc bar():\n\tself.foo()\n",
         );
 
-        let new_program = program.extract_variable((4, 2), (4, 8), "x");
+        let new_program = program.extract_variable((4, 2), (4, 8), "x").0;
 
         assert_program_prints_to(
             new_program,
@@ -219,7 +219,7 @@ mod tests {
             "func foo():\n\treturn 2 + 2\nfunc bar():\n\tself.foo()\n",
         );
 
-        let new_program = program.extract_variable((4, 2), (4, 4), "x");
+        let new_program = program.extract_variable((4, 2), (4, 4), "x").0;
 
         assert_program_prints_to(
             new_program,
@@ -234,7 +234,7 @@ mod tests {
             "func foo():\n\treturn 2 + 2\n",
         );
 
-        let new_program = program.extract_variable((2, 9), (2, 12), "x");
+        let new_program = program.extract_variable((2, 9), (2, 12), "x").0;
 
         assert_program_prints_to(
             new_program,
@@ -249,7 +249,7 @@ mod tests {
             "func foo():\n\treturn 2 + 2\n",
         );
 
-        let new_program = program.extract_variable((2, 9), (2, 9), "x");
+        let new_program = program.extract_variable((2, 9), (2, 9), "x").0;
 
         assert_program_prints_to(
             new_program,
@@ -283,7 +283,7 @@ mod tests {
             "func foo():\n\treturn 2 + self.bar()\n",
         );
 
-        let new_program = program.extract_variable((2, 9), (2, 9), "dos");
+        let new_program = program.extract_variable((2, 9), (2, 9), "dos").0;
 
         assert_program_prints_to(
             new_program,
@@ -298,7 +298,7 @@ mod tests {
             "func foo():\n\treturn 2 + self.bar()\n",
         );
 
-        let new_program = program.extract_variable((2, 13), (2, 16), "x");
+        let new_program = program.extract_variable((2, 13), (2, 16), "x").0;
 
         assert_program_prints_to(
             new_program,
@@ -310,7 +310,7 @@ mod tests {
     fn test_program_extract_variable_when_the_statement_is_at_the_end_of_the_function() {
         let program = GDScriptParser::parse_to_program("func foo():\n\t2+2\n\t3+5");
 
-        let new_program = program.extract_variable((3, 2), (3, 4), "y");
+        let new_program = program.extract_variable((3, 2), (3, 4), "y").0;
 
         assert_program_prints_to(new_program, "func foo():\n\t2 + 2\n\tvar y = 3 + 5\n\ty\n");
     }
@@ -341,7 +341,7 @@ mod tests {
     fn test_program_extract_variable_lets_me_extract_a_subexpression() {
         let program = GDScriptParser::parse_to_program("func foo():\n\t2+3\n");
 
-        let new_program = program.extract_variable((2, 2), (2, 2), "y");
+        let new_program = program.extract_variable((2, 2), (2, 2), "y").0;
 
         assert_program_prints_to(new_program, "
 func foo():
@@ -354,7 +354,7 @@ func foo():
     fn test_program_extract_variable_lets_me_extract_a_subexpression_even_if_its_the_rightmost_expression() {
         let program = GDScriptParser::parse_to_program("func foo():\n\t2+3\n");
 
-        let new_program = program.extract_variable((2, 4), (2, 4), "y");
+        let new_program = program.extract_variable((2, 4), (2, 4), "y").0;
 
         assert_program_prints_to(new_program, "
 func foo():

@@ -4,9 +4,12 @@ mod godot_ast_types;
 mod parsing;
 mod printing;
 
+use std::ops::Range;
+
 use godot_ast_types::*;
 use godot::prelude::*;
 use parsing::GDScriptParser;
+use refactorings::LineCol;
 
 
 struct MyExtension;
@@ -41,16 +44,24 @@ impl MiParser {
         start_column: i32,
         end_line: i32,
         end_column: i32,
-        variable_name: String) -> GString {
+        variable_name: String) -> VariantArray {
         let program = GDScriptParser::parse_to_program(input.as_str());
         
-        GString::from(
-            program.extract_variable(
-                (start_line as usize + 1, start_column as usize + 1),
-                 (end_line as usize + 1, end_column as usize + 1), 
-                 variable_name.as_str()
-                ).to_string()
-        )
+        let (new_program, selection) = program.extract_variable(
+            (start_line as usize + 1, start_column as usize + 1),
+             (end_line as usize + 1, end_column as usize + 1), 
+             variable_name.as_str()
+        );
+        let selection_as_godot: Vec<VariantArray> = selection.iter().map(Self::line_col_range_to_godot_vec).collect();
+
+        varray![GString::from(new_program.to_string()), selection_as_godot.to_variant()]
+    }
+
+    fn line_col_range_to_godot_vec(range: &Range<LineCol>) -> VariantArray {
+        let (start_line, start_col) = range.start;
+        let (end_line, end_col) = range.end;
+        
+        varray![Vector2i::new(start_line as i32, start_col as i32), Vector2i::new(end_line as i32, end_col as i32)]
     }
 
     #[func]

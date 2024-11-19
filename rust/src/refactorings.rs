@@ -40,7 +40,7 @@ fn range_contains<T: PartialOrd>(outer: std::ops::Range<T>, inner: std::ops::Ran
     outer.start <= inner.start && outer.end >= inner.end
 }
 
-type LineCol = (usize, usize);
+pub type LineCol = (usize, usize);
 
 trait ExtendedPair {
     fn contains_range(&self, range: Range<LineCol>) -> bool;
@@ -78,7 +78,8 @@ impl<'a> Program<'a> {
         start_line_column: (usize, usize),
         end_line_column: (usize, usize),
         variable_name: &'a str
-    ) -> Program {
+    ) -> (Program, Vec<Range<LineCol>>) {
+        static mut pos_start_variable_usage: LineCol = (0, 0);
         let selected_range = start_line_column .. end_line_column;
         let maybe_declaration_idx = self.declarations.iter().position( |declaration|
             {
@@ -91,10 +92,11 @@ impl<'a> Program<'a> {
             }
         );
         if maybe_declaration_idx.is_none() {
-            return self.clone()
+            return (self.clone(), vec![])
         }
         let declaration_idx = maybe_declaration_idx.unwrap();
-        self.transform_declaration(declaration_idx, move |declaration: &Declaration<'a>| -> Declaration<'_> {
+        let this = &self;
+        let mut f = move |declaration: &Declaration<'a>| -> Declaration<'_> {
             match declaration.clone().kind {
                 DeclarationKind::Function(function_name, function_type, params, ref statements) => {
                     let maybe_statement_idx = statements.iter().position(|statement|
@@ -111,26 +113,28 @@ impl<'a> Program<'a> {
                         match &old_statement.kind {
                             StatementKind::Expression(expression) => {
                                 let (old_expr, new_expr) = expression_replacement(expression.clone(), variable_usage, selected_range.clone());
+                                unsafe { pos_start_variable_usage = old_expr.pair.clone().unwrap().line_col_range().start };
                                 (old_expr, StatementKind::Expression(new_expr).to_statement(None))
                             },
                             StatementKind::Return(Some(expression)) => {
                                 let (old_expr, new_expr) = expression_replacement(expression.clone(), variable_usage, selected_range.clone());
+                                unsafe { pos_start_variable_usage = old_expr.pair.clone().unwrap().line_col_range().start };
                                 (old_expr, StatementKind::Return(Some(new_expr)).to_statement(None))
                             }
                             _ => return declaration.clone()
                     };
 
-                    fn expression_replacement<'a>(expression: Expression<'a>, variable_usage: Expression<'a>, text_range: Range<(usize, usize)>) -> (ExpressionKind<'a>, Expression<'a>) {
+                    fn expression_replacement<'a>(expression: Expression<'a>, variable_usage: Expression<'a>, text_range: Range<(usize, usize)>) -> (Expression<'a>, Expression<'a>) {
                         match &expression.kind {
                             ExpressionKind::LiteralInt(_) | ExpressionKind::Unknown(_) | ExpressionKind::LiteralSelf => {
-                                (expression.clone().kind, variable_usage.clone())
+                                (expression.clone(), variable_usage.clone())
                             },
                             ExpressionKind::BinaryOperation(
                                 expression1,
                                 op,
                                 expression2
                             ) => {
-                                let old_expr: ExpressionKind;
+                                let old_expr: Expression;
                                 let kind: ExpressionKind;
                                 if expression1.pair.clone().unwrap().contains_range(text_range.clone()) {
                                     let (inner_old_expr, inner_kind) =
@@ -143,19 +147,19 @@ impl<'a> Program<'a> {
                                     old_expr = inner_old_expr;
                                     kind = ExpressionKind::BinaryOperation(expression1.clone(), op, Box::new(inner_kind))
                                 } else {
-                                    old_expr = expression.clone().kind;
+                                    old_expr = expression.clone();
                                     kind = variable_usage.clone().kind;
                                 }
                                 (old_expr, Expression { pair: None, kind })
                             },
                             ExpressionKind::MessageSend(receiver, method_name, arguments) => {
-                                let old_expr: ExpressionKind;
+                                let old_expr: Expression;
                                 let kind: ExpressionKind;
                                 if receiver.pair.clone().unwrap().contains_range(text_range.clone()) {
-                                    old_expr = receiver.clone().kind;
+                                    old_expr = *receiver.clone();
                                     kind = ExpressionKind::MessageSend(Box::new(variable_usage.clone()), method_name, arguments.to_vec())
                                 } else {
-                                    old_expr = expression.clone().kind;
+                                    old_expr = expression.clone();
                                     kind = variable_usage.clone().kind;
                                 }
                                 (old_expr, Expression { pair: None, kind })
@@ -172,7 +176,32 @@ impl<'a> Program<'a> {
                 },
                 _ => panic!()
             }
-        })
+        };
+        let new_declarations = {
+            let this = &this.declarations;
+            let mut new_vector = this.clone();
+            match this.get(declaration_idx) {
+                Some(old_value) => {
+                    let new_value = f(old_value);
+                    new_vector.push(new_value);
+                    new_vector.swap_remove(declaration_idx);
+                    new_vector
+                },
+                None => panic!("Index out of bounds"),
+            }
+        };
+        let new_program = this.with_declarations(new_declarations);
+
+        let (start_line_variable_usage, start_column_variable_usage) = unsafe { pos_start_variable_usage };
+
+        let start_column = "\tvar ".len();
+        let range_where_declaration_happens =
+            (start_line_variable_usage - 1, start_column) .. (start_line_variable_usage - 1, start_column + variable_name.len());
+
+        let range_where_variable_usage_happens =
+            (start_line_variable_usage, start_column_variable_usage - 1) .. (start_line_variable_usage, start_column_variable_usage - 1 + variable_name.len());
+
+        (new_program, vec![range_where_declaration_happens, range_where_variable_usage_happens])
     }
 
     pub fn without_pairs(&self) -> Program {
