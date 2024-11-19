@@ -1,6 +1,6 @@
 use pest::iterators::Pair;
 
-use crate::{godot_ast_types::*, parsing::Rule};
+use crate::{godot_ast_types::*, parsing::{GDScriptParser, Rule}};
 use std::{cell::Cell, ops::Range};
 
 pub trait Replace<T: Clone> {
@@ -96,7 +96,7 @@ impl<'a> Program<'a> {
         }
         let declaration_idx = maybe_declaration_idx.unwrap();
         let this = &self;
-        let mut f = move |declaration: &Declaration<'a>| -> Declaration<'_> {
+        let f = move |declaration: &Declaration<'a>| -> Declaration<'_> {
             match declaration.clone().kind {
                 DeclarationKind::Function(function_name, function_type, params, ref statements) => {
                     let maybe_statement_idx = statements.iter().position(|statement|
@@ -111,6 +111,10 @@ impl<'a> Program<'a> {
                     let old_statement = statements.get(statement_idx).unwrap().clone();
                     let (old_expr, new_statement) =
                         match &old_statement.kind {
+                            StatementKind::VarDeclaration(var_name, expression) => {
+                                let (old_expr, new_expr) = expression_replacement(expression.clone(), variable_usage, selected_range.clone());
+                                (old_expr, StatementKind::VarDeclaration(var_name, new_expr).to_statement(None))
+                            }
                             StatementKind::Expression(expression) => {
                                 let (old_expr, new_expr) = expression_replacement(expression.clone(), variable_usage, selected_range.clone());
                                 unsafe { pos_start_variable_usage = old_expr.pair.clone().unwrap().line_col_range().start };
@@ -169,7 +173,7 @@ impl<'a> Program<'a> {
 
                     let mut new_statements = statements.clone();
                     new_statements.replace_mut(statement_idx, move |_| new_statement.clone());
-                    let new_statement = StatementKind::VarDeclaration(variable_name, old_expr.to_string());
+                    let new_statement = StatementKind::VarDeclaration(variable_name, old_expr);
                     new_statements.insert(statement_idx, new_statement.to_statement(None));
 
                     DeclarationKind::Function(function_name, function_type, params, new_statements).to_declaration(None)
@@ -191,6 +195,10 @@ impl<'a> Program<'a> {
             }
         };
         let new_program = this.with_declarations(new_declarations);
+
+        if self.without_pairs() == new_program.without_pairs() {
+            return (new_program, vec![])
+        };
 
         let (start_line_variable_usage, start_column_variable_usage) = unsafe { pos_start_variable_usage };
 
@@ -460,7 +468,9 @@ impl<'a> StatementKind<'a> {
                 StatementKind::Expression(expression.without_pairs()),
             StatementKind::Return(maybe_expression) =>
             StatementKind::Return(maybe_expression.clone().map(|expr|expr.without_pairs())),
-            _ => self.clone()            
+            StatementKind::VarDeclaration(var_name, expression) =>
+                StatementKind::VarDeclaration(var_name, expression.without_pairs()),
+            StatementKind::Pass | StatementKind::Unknown(_) => self.clone()
         }
     }
 }

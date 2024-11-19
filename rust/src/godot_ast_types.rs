@@ -68,7 +68,7 @@ impl<'a> PartialEq for Statement<'a> {
 pub enum StatementKind<'a> {
     Pass,
     Unknown(String),
-    VarDeclaration(&'a str, String),
+    VarDeclaration(&'a str, Expression<'a>),
     Expression(Expression<'a>),
     Return(Option<Expression<'a>>)
 }

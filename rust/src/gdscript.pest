@@ -22,7 +22,8 @@ function_body = { (NEWLINE ~ identacion ~ statement)+ }
 empty_line = { NEWLINE }
 identacion = { "    " | "\t" }
 identifier = { (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* ~ !(ASCII_ALPHANUMERIC | "_") }
-statement = { pass | flow_statement | expression | unknown }
+statement = { pass | flow_statement | var_declaration_statement | expression | unknown }
+var_declaration_statement = { "var" ~ whitespace ~ identifier ~ whitespace ~ "=" ~ whitespace ~ expression }
 flow_statement = { return_statement }
 message_send = { self_expr ~ "." ~ identifier ~ "()" }
 self_expr = { "self" }

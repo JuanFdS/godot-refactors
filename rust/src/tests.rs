@@ -2,6 +2,14 @@ use std::fmt::format;
 
 use crate::godot_ast_types::*;
 
+fn program(declarations: Vec<Declaration>) -> Program<'_> {
+    Program {
+        is_tool: false,
+        super_class: None,
+        declarations
+    }
+}
+
 fn expr_message_send<'a>(receiver: Expression<'a>, message_name: &'a str, arguments: Vec<Expression<'a>>) -> Expression<'a> {
     Expression { pair: None, kind: ExpressionKind::MessageSend(Box::new(receiver), message_name, arguments) }
 }
@@ -46,8 +54,8 @@ fn statement_unknown<'a>(content: String) -> Statement<'a> {
     _statement_with_kind(StatementKind::Unknown(content))
 }
 
-fn statement_var_declaration<'a>(name: &'a str, content: String) -> Statement<'a> {
-    _statement_with_kind(StatementKind::VarDeclaration(name, content))
+fn statement_var_declaration<'a>(name: &'a str, expression: Expression<'a>) -> Statement<'a> {
+    _statement_with_kind(StatementKind::VarDeclaration(name, expression))
 }
 
 
@@ -288,6 +296,38 @@ mod tests {
         assert_program_prints_to(
             new_program,
             "func foo():\n\tvar dos = 2\n\treturn dos + self.bar()\n"
+        );
+    }
+
+    #[test]
+    fn test_parse_var_declaration_inside_function() {
+        let input = "func foo():\n\tvar x = 2\n";
+
+        assert_parse_eq(input, 
+            program(
+                vec![
+                    dec_function("foo", None, vec![],
+                        vec![statement_var_declaration("x", literal_int(2))]
+                    )
+                ]
+            )
+        );
+        assert_parse_roundtrip(input);
+    }
+    
+    #[test]
+    fn test_program_extract_variable_inside_a_var_declaration(
+    ) {
+        let program = GDScriptParser::parse_to_program(
+            "func foo():\n\tvar x = 2\n\treturn x\n",
+        );
+
+        let new_program = program.extract_variable((2, 10), (2, 10), "y").0;
+
+        assert_program_prints_to(
+            new_program,
+            "func foo():\n\tvar y = 2\n\tvar x = y\n\treturn x\n",
+
         );
     }
 

@@ -142,6 +142,16 @@ impl GDScriptParser {
 
     fn to_statement(parse_result: Pair<Rule>) -> Option<Statement> {
         match parse_result.as_rule() {
+            Rule::var_declaration_statement => {
+                let mut inner_rules = parse_result.clone().into_inner();
+                let identifier = inner_rules.find(
+                    |p| p.as_rule() == Rule::identifier).unwrap();
+                let expression = inner_rules.find(|p| p.as_rule() == Rule::expression).unwrap();
+                Some(StatementKind::VarDeclaration(
+                    identifier.as_span().as_str(),
+                    Self::to_expression(expression)
+                ).to_statement(Some(parse_result)))
+            },
             Rule::flow_statement => Self::to_statement(parse_result.into_inner().next().unwrap()),
             Rule::return_statement => {
                 let maybe_expression = parse_result.clone().into_inner().next().map(Self::to_expression);
@@ -169,7 +179,6 @@ impl GDScriptParser {
     fn to_expression(parse_result: Pair<Rule>) -> Expression {
         let string_to_literal_int = |str: &str| ExpressionKind::LiteralInt(str.parse::<usize>().unwrap());
         let pair = Some(parse_result.clone());
-        let pair_as_str = parse_result.clone().as_span().as_str();
         match &parse_result.as_rule() {
             &Rule::self_expr => Expression { pair, kind: ExpressionKind::LiteralSelf },
             &Rule::message_send => {
