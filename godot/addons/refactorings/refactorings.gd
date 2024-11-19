@@ -110,11 +110,26 @@ func extract_variable():
 	var start_line = code_edit.get_selection_origin_line()
 	var end_column = code_edit.get_selection_to_column()
 	var end_line = code_edit.get_selection_to_line()
-	var new_text = mi_parser.extract_variable(
+	var new_text_and_selection = mi_parser.extract_variable(
 		code_edit.text, start_line, start_column, end_line, end_column, "asd"
 	)
+	var new_text = new_text_and_selection[0]
+	var selection = new_text_and_selection[1]
 	code_edit.text = new_text
+	select_ranges(selection)
 
+func select_ranges(ranges):
+	var code_edit: CodeEdit = _code_edit()
+	var caret_idx: int = 0
+	for range in ranges:
+		var start_pos: Vector2i = range[0]
+		var end_pos: Vector2i = range[1]
+		if caret_idx >= code_edit.get_caret_count():
+			var caret_index = code_edit.add_caret(start_pos.x, start_pos.y)
+		code_edit.deselect(caret_idx)
+		code_edit.select(start_pos.x, start_pos.y, end_pos.x, end_pos.y, caret_idx)
+		caret_idx += 1
+	code_edit.grab_focus()
 
 func spawn_tooltip():
 	var code_edit = _code_edit()

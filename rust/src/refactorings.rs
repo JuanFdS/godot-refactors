@@ -117,19 +117,20 @@ impl<'a> Program<'a> {
                             }
                             StatementKind::Expression(expression) => {
                                 let (old_expr, new_expr) = expression_replacement(expression.clone(), variable_usage, selected_range.clone());
-                                unsafe { pos_start_variable_usage = old_expr.pair.clone().unwrap().line_col_range().start };
                                 (old_expr, StatementKind::Expression(new_expr).to_statement(None))
                             },
                             StatementKind::Return(Some(expression)) => {
                                 let (old_expr, new_expr) = expression_replacement(expression.clone(), variable_usage, selected_range.clone());
-                                unsafe { pos_start_variable_usage = old_expr.pair.clone().unwrap().line_col_range().start };
                                 (old_expr, StatementKind::Return(Some(new_expr)).to_statement(None))
                             }
                             _ => return declaration.clone()
                     };
 
-                    fn expression_replacement<'a>(expression: Expression<'a>, variable_usage: Expression<'a>, text_range: Range<(usize, usize)>) -> (Expression<'a>, Expression<'a>) {
-                        match &expression.kind {
+                    fn expression_replacement<'a>(
+                        expression: Expression<'a>,
+                        variable_usage: Expression<'a>,
+                        text_range: Range<(usize, usize)>) -> (Expression<'a>, Expression<'a>) {
+                        let (old_expr, new_expr) = match &expression.kind {
                             ExpressionKind::LiteralInt(_) | ExpressionKind::Unknown(_) | ExpressionKind::LiteralSelf => {
                                 (expression.clone(), variable_usage.clone())
                             },
@@ -168,7 +169,9 @@ impl<'a> Program<'a> {
                                 }
                                 (old_expr, Expression { pair: None, kind })
                             },
-                        }
+                        };
+                        unsafe { pos_start_variable_usage = old_expr.pair.clone().unwrap().line_col_range().start };
+                        (old_expr, new_expr)
                     }
 
                     let mut new_statements = statements.clone();

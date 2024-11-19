@@ -1,14 +1,8 @@
-@tool
-extends Node2D
+func foo():
+	var x = 3
+	return 2 + x
 
-func f_oo(x, y):
-	if x > y:
-		return "lalala"
-
-var as_d = 2
-
-@export_tool_button("bar") var _bar = bar
 func bar():
-	2+2
-	"holu"
-	2+2
+	var x = 10
+	var wololo = x + self.foo()
+	return wololo
