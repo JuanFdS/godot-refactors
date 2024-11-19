@@ -69,7 +69,8 @@ pub enum StatementKind<'a> {
     Pass,
     Unknown(String),
     VarDeclaration(&'a str, String),
-    Expression(Expression<'a>)
+    Expression(Expression<'a>),
+    Return(Option<Expression<'a>>)
 }
 
 type RulePair<'a> = Option<Pair<'a, Rule>>;
@@ -87,4 +88,7 @@ pub enum ExpressionKind<'a> {
     LiteralInt(usize),
     BinaryOperation(Box<Expression<'a>>, &'a str, Box<Expression<'a>>),
     Unknown(String),
+    // (receiver: Expression<'a>, message_name: &'a str, arguments: Vec<Expression<'a>>)
+    LiteralSelf,
+    MessageSend(Box<Expression<'a>>, &'a str, Vec<Expression<'a>>)
 }

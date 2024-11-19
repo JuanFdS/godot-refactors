@@ -142,6 +142,11 @@ impl GDScriptParser {
 
     fn to_statement(parse_result: Pair<Rule>) -> Option<Statement> {
         match parse_result.as_rule() {
+            Rule::flow_statement => Self::to_statement(parse_result.into_inner().next().unwrap()),
+            Rule::return_statement => {
+                let maybe_expression = parse_result.clone().into_inner().next().map(Self::to_expression);
+                Some(Statement { pair: Some(parse_result.clone()), kind: StatementKind::Return(maybe_expression) })
+            },
             Rule::unknown => Some(
                 Statement { pair: Some(parse_result.clone()), kind: StatementKind::Unknown(parse_result.as_span().as_str().to_owned()) }),
             Rule::pass => Some(
@@ -164,8 +169,15 @@ impl GDScriptParser {
     fn to_expression(parse_result: Pair<Rule>) -> Expression {
         let string_to_literal_int = |str: &str| ExpressionKind::LiteralInt(str.parse::<usize>().unwrap());
         let pair = Some(parse_result.clone());
-        let as_str = parse_result.as_span().as_str();
+        let pair_as_str = parse_result.clone().as_span().as_str();
         match &parse_result.as_rule() {
+            &Rule::self_expr => Expression { pair, kind: ExpressionKind::LiteralSelf },
+            &Rule::message_send => {
+                let mut inner = parse_result.into_inner();
+                let receiver = Self::to_expression(inner.next().unwrap());
+                let message_name = inner.next().unwrap().as_span().as_str();
+                Expression { pair, kind: ExpressionKind::MessageSend(Box::new(receiver), message_name, vec![]) }
+            },
             &Rule::literal_int =>
                 Expression { pair, kind: string_to_literal_int(parse_result.as_span().as_str()) },
             &Rule::binary_operation => {

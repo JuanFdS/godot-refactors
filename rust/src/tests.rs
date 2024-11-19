@@ -1,4 +1,23 @@
+use std::fmt::format;
+
 use crate::godot_ast_types::*;
+
+fn statement_message_send<'a>(receiver: Expression<'a>, message_name: &'a str, arguments: Vec<Expression<'a>>) -> Statement<'a> {
+    Statement { pair: None, kind: StatementKind::Expression(
+        Expression { pair: None, kind: ExpressionKind::MessageSend(Box::new(receiver), message_name, arguments) }) }
+}
+
+fn statement_empty_return<'a>() -> Statement<'a> {
+    Statement { pair: None, kind: StatementKind::Return(None) }
+}
+
+fn statement_return<'a>(returned_expression: Expression<'a>) -> Statement<'a> {
+    Statement { pair: None, kind: StatementKind::Return(Some(returned_expression)) }
+}
+
+fn expr_self<'a>() -> Expression<'a> {
+    Expression { pair: None, kind: ExpressionKind::LiteralSelf }
+}
 
 fn expression_binary_op<'a>(a: Expression<'a>, op: &'a str, b: Expression<'a>) -> Expression<'a> {
     Expression { pair: None, kind: ExpressionKind::BinaryOperation(Box::new(a), op, Box::new(b)) }
@@ -123,8 +142,68 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "TODO: implementar envios de mensajes como expressiones"]
+    fn test_parse_function_with_empty_return() {
+        let input = "func foo():\n\treturn\n";
+
+        assert_parse_eq(input,
+            Program {
+                is_tool: false,
+                super_class: None,
+                declarations: vec![
+                    dec_function("foo", None, vec![], vec![
+                        statement_empty_return(),
+                    ])
+                ]
+            }
+        );
+        assert_parse_roundtrip(input);
+    }
+
+    #[test]
+    fn test_parse_function_with_message_send_in_its_body() {
+        let input = "func foo():\n\treturn 2 + 2\nfunc bar():\n\tself.foo()\n";
+
+        assert_parse_eq(input,
+            Program {
+                is_tool: false,
+                super_class: None,
+                declarations: vec![
+                    dec_function("foo", None, vec![], vec![
+                        statement_return(
+                            expression_binary_op(literal_int(2), "+", literal_int(2))
+                        ),
+                    ]),
+                    dec_function("bar", None, vec![], vec![
+                        statement_message_send(
+                            expr_self(),
+                            "foo",
+                            vec![]
+                        )
+                    ])
+                ]
+            }
+        );
+
+        assert_parse_roundtrip(input);
+    }
+
+    #[test]
     fn test_program_extract_variable_when_the_part_to_extract_is_repeated_in_more_than_one_function(
+    ) {
+        let program = GDScriptParser::parse_to_program(
+            "func foo():\n\treturn 2 + 2\nfunc bar():\n\tself.foo()\n",
+        );
+
+        let new_program = program.extract_variable((4, 2), (4, 8), "x");
+
+        assert_program_prints_to(
+            new_program,
+            "func foo():\n\treturn 2 + 2\nfunc bar():\n\tvar x = self.foo()\n\tx\n",
+        );
+    }
+
+    #[test]
+    fn test_program_extract_variable_from_receiver_of_a_message_send(
     ) {
         let program = GDScriptParser::parse_to_program(
             "func foo():\n\treturn 2 + 2\nfunc bar():\n\tself.foo()\n",
@@ -134,7 +213,37 @@ mod tests {
 
         assert_program_prints_to(
             new_program,
-            "func foo():\n\treturn 2 + 2\nfunc bar():\n\tvar x = self.foo()\n\tx\n",
+            "func foo():\n\treturn 2 + 2\nfunc bar():\n\tvar x = self\n\tx.foo()\n",
+        );
+    }
+
+    #[test]
+    fn test_program_extract_variable_that_is_being_returned(
+    ) {
+        let program = GDScriptParser::parse_to_program(
+            "func foo():\n\treturn 2 + 2\n",
+        );
+
+        let new_program = program.extract_variable((2, 9), (2, 12), "x");
+
+        assert_program_prints_to(
+            new_program,
+            "func foo():\n\tvar x = 2 + 2\n\treturn x\n"
+        );
+    }
+
+    #[test]
+    fn test_program_extract_variable_that_is_a_subexpression_of_what_is_being_returned(
+    ) {
+        let program = GDScriptParser::parse_to_program(
+            "func foo():\n\treturn 2 + 2\n",
+        );
+
+        let new_program = program.extract_variable((2, 9), (2, 9), "x");
+
+        assert_program_prints_to(
+            new_program,
+            "func foo():\n\tvar x = 2\n\treturn x + 2\n"
         );
     }
 

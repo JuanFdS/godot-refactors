@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::fmt::{format, Display};
 use crate::godot_ast_types::*;
 
 impl Display for Program<'_> {
@@ -72,6 +72,11 @@ impl Display for ExpressionKind<'_> {
             ExpressionKind::BinaryOperation(expression, op, expression1) =>
                 format!("{expression} {op} {expression1}"),
             ExpressionKind::Unknown(content) => content.to_string(),
+            ExpressionKind::MessageSend(expression, message_name, vec) =>
+                if !vec.is_empty() {
+                    panic!("TODO: manejar el caso en el que hay argumentos")
+                } else { format!("{expression}.{message_name}()") },
+            ExpressionKind::LiteralSelf => "self".to_owned(),
         };
 
         write!(f, "{}", text)
