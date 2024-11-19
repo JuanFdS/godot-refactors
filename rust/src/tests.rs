@@ -2,9 +2,8 @@ use std::fmt::format;
 
 use crate::godot_ast_types::*;
 
-fn statement_message_send<'a>(receiver: Expression<'a>, message_name: &'a str, arguments: Vec<Expression<'a>>) -> Statement<'a> {
-    Statement { pair: None, kind: StatementKind::Expression(
-        Expression { pair: None, kind: ExpressionKind::MessageSend(Box::new(receiver), message_name, arguments) }) }
+fn expr_message_send<'a>(receiver: Expression<'a>, message_name: &'a str, arguments: Vec<Expression<'a>>) -> Expression<'a> {
+    Expression { pair: None, kind: ExpressionKind::MessageSend(Box::new(receiver), message_name, arguments) }
 }
 
 fn statement_empty_return<'a>() -> Statement<'a> {
@@ -17,6 +16,10 @@ fn statement_return<'a>(returned_expression: Expression<'a>) -> Statement<'a> {
 
 fn expr_self<'a>() -> Expression<'a> {
     Expression { pair: None, kind: ExpressionKind::LiteralSelf }
+}
+
+fn expr_unknown<'a>(text: String) -> Expression<'a> {
+    Expression { pair: None, kind: ExpressionKind::Unknown(text) }
 }
 
 fn expression_binary_op<'a>(a: Expression<'a>, op: &'a str, b: Expression<'a>) -> Expression<'a> {
@@ -42,6 +45,11 @@ fn statement_pass<'a>() -> Statement<'a> {
 fn statement_unknown<'a>(content: String) -> Statement<'a> {
     _statement_with_kind(StatementKind::Unknown(content))
 }
+
+fn statement_var_declaration<'a>(name: &'a str, content: String) -> Statement<'a> {
+    _statement_with_kind(StatementKind::VarDeclaration(name, content))
+}
+
 
 fn dec_function<'a>(
     function_name: &'a str,
@@ -174,10 +182,12 @@ mod tests {
                         ),
                     ]),
                     dec_function("bar", None, vec![], vec![
-                        statement_message_send(
-                            expr_self(),
-                            "foo",
-                            vec![]
+                        statement_expression(
+                            expr_message_send(
+                                expr_self(),
+                                "foo",
+                                vec![]
+                            )
                         )
                     ])
                 ]
@@ -244,6 +254,55 @@ mod tests {
         assert_program_prints_to(
             new_program,
             "func foo():\n\tvar x = 2\n\treturn x + 2\n"
+        );
+    }
+
+    #[test]
+    fn test_program_parses_return_with_integer_and_message_send() {
+        let input = "func foo():\n\treturn 2 + self.bar()\n";
+
+        assert_parse_eq(input, Program {
+            is_tool: false,
+            super_class: None,
+            declarations: vec![
+                dec_function("foo", None, vec![], vec![
+                    statement_return(
+                        expression_binary_op(literal_int(2), "+", expr_message_send(expr_self(), "bar", vec![]))
+                    )
+                ])
+            ]
+        });
+
+        assert_parse_roundtrip(input);
+    }
+
+    #[test]
+    fn test_program_extract_variable_when_returning_the_addition_of_an_int_and_a_message_send(
+    ) {
+        let program = GDScriptParser::parse_to_program(
+            "func foo():\n\treturn 2 + self.bar()\n",
+        );
+
+        let new_program = program.extract_variable((2, 9), (2, 9), "dos");
+
+        assert_program_prints_to(
+            new_program,
+            "func foo():\n\tvar dos = 2\n\treturn dos + self.bar()\n"
+        );
+    }
+
+    #[test]
+    fn test_program_extract_variable_extract_subexpression_of_subexpression(
+    ) {
+        let program = GDScriptParser::parse_to_program(
+            "func foo():\n\treturn 2 + self.bar()\n",
+        );
+
+        let new_program = program.extract_variable((2, 13), (2, 16), "x");
+
+        assert_program_prints_to(
+            new_program,
+            "func foo():\n\tvar x = self\n\treturn 2 + x.bar()\n"
         );
     }
 

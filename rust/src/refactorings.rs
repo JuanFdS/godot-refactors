@@ -133,11 +133,15 @@ impl<'a> Program<'a> {
                                 let old_expr: ExpressionKind;
                                 let kind: ExpressionKind;
                                 if expression1.pair.clone().unwrap().contains_range(text_range.clone()) {
-                                    old_expr = expression1.clone().kind;
-                                    kind = ExpressionKind::BinaryOperation(Box::new(variable_usage.clone()), op, expression2.clone())
+                                    let (inner_old_expr, inner_kind) =
+                                        expression_replacement(*expression1.clone(), variable_usage.clone(), text_range);
+                                    old_expr = inner_old_expr;
+                                    kind = ExpressionKind::BinaryOperation(Box::new(inner_kind), op, expression2.clone())
                                 } else if expression2.pair.clone().unwrap().contains_range(text_range.clone()) {
-                                    old_expr = expression2.clone().kind;
-                                    kind = ExpressionKind::BinaryOperation(expression1.clone(), op, Box::new(variable_usage.clone()))
+                                    let (inner_old_expr, inner_kind) =
+                                        expression_replacement(*expression2.clone(), variable_usage.clone(), text_range);
+                                    old_expr = inner_old_expr;
+                                    kind = ExpressionKind::BinaryOperation(expression1.clone(), op, Box::new(inner_kind))
                                 } else {
                                     old_expr = expression.clone().kind;
                                     kind = variable_usage.clone().kind;
