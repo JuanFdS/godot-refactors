@@ -1183,6 +1183,20 @@ func foo():
         )
     }
 
+    #[test]
+    fn get_ocurrences_of_variable_returns_a_list_of_text_ranges_where_the_variable_is_declared_and_used() {
+        let input = "
+func foo():
+\tvar bar = 2
+\tvar x = 3 + bar
+\treturn bar - bar";
+        
+        let program = GDScriptParser::parse_to_program(input);
+        let occurrences = program.get_ocurrences_of_variable((2,6), (2,8));
+        assert_eq!(occurrences,
+            vec![(2, 6) .. (2, 8), (3, 9) .. (3, 11), (3, 15) .. (3, 17)])
+    }
+
     // #[test]
     // fn extract_function_creates_a_function_from_some_statements() {
     //     let input = "func foo():\n\tpass\n";

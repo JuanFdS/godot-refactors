@@ -66,11 +66,36 @@ impl<'a> ExtendedPair for Pair<'a, Rule> {
     }
 }
 
+type SelectionRange = Range<LineCol>;
+
 impl<'a> Program<'a> {
+
+    fn find_function_declaration_by_selection_range(&self, range: &SelectionRange) -> Option<(usize, &Declaration)> {
+        self.declarations.iter().enumerate().find( |(_idx, declaration)|
+            {
+                let is_function = match declaration.kind {
+                    DeclarationKind::Function(_, _, _, _) => true,
+                    _ => false
+                };
+                let declaration_pair = declaration.pair.clone().unwrap();
+                let contains_selected_range = declaration_pair.contains_range(range.clone());
+                is_function && contains_selected_range
+            }
+        )
+    }
 
     fn transform_declaration(&self, index: usize, f: impl Fn(&Declaration<'a>) -> Declaration<'a>) -> Program {
         let new_declarations = self.declarations.replace(index, f);
         self.with_declarations(new_declarations)
+    }
+
+    pub fn get_ocurrences_of_variable(&self, start_line_column: LineCol, end_line_column: LineCol) -> Vec<Range<LineCol>> {
+        let selected_range = start_line_column .. end_line_column;
+        let (declaration_idx, declaration) = match self.find_function_declaration_by_selection_range(&selected_range) {
+            Some(result) => result,
+            None => return vec![]
+        };
+        vec![]
     }
 
     pub fn inline_variable(
@@ -79,21 +104,11 @@ impl<'a> Program<'a> {
         end_line_column: LineCol
     ) -> (Program, Vec<Range<LineCol>>) {
         let selected_range = start_line_column .. end_line_column;
-        let maybe_declaration_idx = self.declarations.iter().position( |declaration|
-            {
-                let is_function = match declaration.kind {
-                    DeclarationKind::Function(_, _, _, _) => true,
-                    _ => false
-                };
-                let declaration_pair = declaration.pair.clone().unwrap();
-                let contains_selected_range = declaration_pair.contains_range(selected_range.clone());
-                is_function && contains_selected_range
-            }
-        );
-        if maybe_declaration_idx.is_none() {
-            return (self.clone(), vec![])
+        let (declaration_idx, _declaration) =
+            match self.find_function_declaration_by_selection_range(&selected_range) {
+                Some(result) => result,
+                None => return (self.clone(), vec![])
         };
-        let declaration_idx = maybe_declaration_idx.unwrap();
         let new_program = self.transform_declaration(declaration_idx, |function| {
             let (f_name, f_type, f_params, statements) = match &function.kind {
                 DeclarationKind::Function(f_name, f_type, f_params, s) =>
@@ -198,20 +213,11 @@ impl<'a> Program<'a> {
     ) -> (Program, Vec<Range<LineCol>>) {
         static mut pos_start_variable_usage: LineCol = (0, 0);
         let selected_range = start_line_column .. end_line_column;
-        let maybe_declaration_idx = self.declarations.iter().position( |declaration|
-            {
-                let is_function = match declaration.kind {
-                    DeclarationKind::Function(_, _, _, _) => true,
-                    _ => false
-                };
-                let declaration_pair = declaration.pair.clone().unwrap();
-                is_function && declaration_pair.contains_range(selected_range.clone())
-            }
-        );
-        if maybe_declaration_idx.is_none() {
-            return (self.clone(), vec![])
-        }
-        let declaration_idx = maybe_declaration_idx.unwrap();
+        let (declaration_idx, _declaration) =
+        match self.find_function_declaration_by_selection_range(&selected_range) {
+            Some(result) => result,
+            None => return (self.clone(), vec![])
+        };
         let this = &self;
         let f = move |declaration: &Declaration<'a>| -> Declaration<'_> {
             match declaration.clone().kind {
@@ -596,9 +602,75 @@ impl<'a> StatementKind<'a> {
     }
 }
 
+struct ExpressionReplacement<'a> {
+    old: Expression<'a>,
+    new: Expression<'a>,
+    range_of_new_expression: SelectionRange
+}
+
 impl <'a> Expression<'a> {
     pub fn without_pairs(&self) -> Expression<'a> {
         Expression { pair: None, kind: self.kind.without_pairs() }
+    }
+
+    pub fn contains_range(&self, range: &SelectionRange) -> bool {
+        self.pair.clone().is_some_and(|pair| pair.contains_range(range.clone()))
+    }
+
+    fn replace_expression_by_selection(
+        &self,
+        selection_to_remove: &SelectionRange,
+        expression_to_add: &Expression<'a>) -> Option<ExpressionReplacement> {
+            if !self.contains_range(selection_to_remove) {
+                return None
+            };
+        match &self.kind {
+            ExpressionKind::LiteralInt(_) | ExpressionKind::Unknown(_) |
+                ExpressionKind::LiteralSelf | ExpressionKind::VariableUsage(_) => {
+                    Some(ExpressionReplacement { old: self.clone(), new: expression_to_add.clone(), range_of_new_expression: 
+                        {
+                            let (start_line, start_col) = self.pair.clone().unwrap().line_col();
+                            (start_line, start_col) .. (start_line, start_col + expression_to_add.to_string().len())
+                        }})
+            },
+            ExpressionKind::BinaryOperation(
+                expression1,
+                op,
+                expression2
+            ) => {
+                let old: Expression;
+                let kind: ExpressionKind;
+                let range_of_new_expression: SelectionRange;
+                if let Some(replacement) = expression1.replace_expression_by_selection(&selection_to_remove, &expression_to_add) {
+                    old = replacement.old;
+                    kind = ExpressionKind::BinaryOperation(Box::new(replacement.new), op, expression2.clone());
+                    range_of_new_expression = replacement.range_of_new_expression;
+                } else if let Some(replacement) = expression2.replace_expression_by_selection(&selection_to_remove, &expression_to_add) {
+                    old = replacement.old;
+                    kind = ExpressionKind::BinaryOperation(expression1.clone(), op, Box::new(replacement.new));
+                    range_of_new_expression = replacement.range_of_new_expression;
+                } else {
+                    return None;
+                }
+                Some(ExpressionReplacement { old, new: Expression { pair: None, kind }, range_of_new_expression })
+            },
+            ExpressionKind::MessageSend(receiver, method_name, arguments) => {
+                let old: Expression;
+                let kind: ExpressionKind;
+                if receiver.pair.clone().unwrap().contains_range(selection_to_remove.clone()) {
+                    old = *receiver.clone();
+                    kind = ExpressionKind::MessageSend(Box::new(expression_to_add.clone()), method_name, arguments.to_vec())
+                } else {
+                    return None;
+                }
+                Some(ExpressionReplacement { old: old.clone(), new: Expression { pair: None, kind }, range_of_new_expression:
+                    {
+                        let (start_line, start_col) = old.clone().pair.clone().unwrap().line_col();
+                        (start_line, start_col) .. (start_line, start_col + expression_to_add.to_string().len())
+                    }
+                })
+            },
+        }
     }
 }
 
