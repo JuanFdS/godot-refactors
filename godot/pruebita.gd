@@ -1,6 +1,6 @@
-func bar():
-	var bleh = self.foo()
-	return bleh
+
+func bar(a, b, c):
+	return a + b + c
 
 func foo():
-	return (5 + 2) + 3
+	return self.bar(1, 2, 4) + 3

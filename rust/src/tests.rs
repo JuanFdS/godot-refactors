@@ -156,9 +156,10 @@ mod tests {
     fn test_program_extract_variable() {
         let program = GDScriptParser::parse_to_program("func foo():\n\t2+2\n");
 
-        let new_program = program.extract_variable((2, 2), (2, 4), "coso").0;
+        let (new_program, lines_to_select) = program.extract_variable((2, 2), (2, 4), "coso");
 
         assert_program_prints_to(new_program, "func foo():\n\tvar coso = 2 + 2\n\tcoso\n");
+        assert_eq!(lines_to_select, vec![(2,6) .. (2,9), (3,2) .. (2,5)]);
     }
 
     #[test]
