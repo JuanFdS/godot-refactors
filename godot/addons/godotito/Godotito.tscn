@@ -1,0 +1,19 @@
+[gd_scene load_steps=3 format=3 uid="uid://pi8nv6o5qwrr"]
+
+[ext_resource type="Texture2D" uid="uid://bsw7hamwnvi1j" path="res://icon.svg" id="1_nb623"]
+
+[sub_resource type="GDScript" id="GDScript_nb623"]
+script/source = "@tool
+extends Sprite2D
+
+func _process(delta: float) -> void:
+	global_position = get_global_mouse_position()
+"
+
+[node name="Godotito" type="Sprite2D"]
+process_mode = 3
+modulate = Color(1, 1, 1, 0.196078)
+position = Vector2(901.913, 268.214)
+scale = Vector2(0.15, 0.15)
+texture = ExtResource("1_nb623")
+script = SubResource("GDScript_nb623")

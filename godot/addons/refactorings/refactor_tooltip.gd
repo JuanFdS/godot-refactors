@@ -27,6 +27,10 @@ func _ready():
 		queue_free()
 		refactorings.extract_variable()
 	)
+	%InlineVariable.pressed.connect(func():
+		queue_free()
+		refactorings.inline_variable()
+	)
 
 
 func appear(a_code_edit: CodeEdit):
@@ -52,5 +56,5 @@ func _process(_delta):
 		position = Vector2(pos) + offset
 		if(abs(global_position.y - get_global_mouse_position().y) > 50.0):
 			visible = false
-		if(abs(global_position.x - get_global_mouse_position().x) > 300.0):
-			visible = false
+		#if(abs(global_position.x - get_global_mouse_position().x) > (50.0 + size.x / 2.0)):
+			#visible = false

@@ -1,7 +1,24 @@
-use godot::classes::web_socket_peer::State;
+
+use std::hint::black_box;
+
 use pest::Parser;
 use pest_derive::Parser;
 use crate::godot_ast_types::*;
+
+struct DebugPair<'a> {
+    all_input: &'a str,
+    span: &'a str,
+    rule: Rule
+}
+
+fn debug_pair<'a>(pair: &Pair<'a, Rule>) -> DebugPair<'a> {
+    DebugPair {
+        all_input: pair.get_input(),
+        span: pair.as_span().as_str(),
+        rule: pair.as_rule()
+    }
+}
+
 
 #[derive(Parser)]
 #[grammar = "gdscript.pest"]
@@ -141,6 +158,7 @@ impl GDScriptParser {
     }
 
     fn to_statement(parse_result: Pair<Rule>) -> Option<Statement> {
+        let foo = &debug_pair(&parse_result);
         match parse_result.as_rule() {
             Rule::var_declaration_statement => {
                 let mut inner_rules = parse_result.clone().into_inner();
@@ -164,12 +182,9 @@ impl GDScriptParser {
             ),
             Rule::expression => {
                 let sub_expression = Self::to_expression(parse_result.clone());
-                let statement_kind = match sub_expression.kind {
-                    ExpressionKind::Unknown(text) => StatementKind::Unknown(text),
-                    _ => StatementKind::Expression(sub_expression)
-                };
+                let kind = StatementKind::Expression(sub_expression);
 
-                Some(Statement { pair: Some(parse_result), kind: statement_kind })
+                Some(Statement { pair: Some(parse_result), kind })
             },
             Rule::statement => Self::to_statement(parse_result.into_inner().next().unwrap()),
             _ => None,
@@ -187,6 +202,10 @@ impl GDScriptParser {
                 let message_name = inner.next().unwrap().as_span().as_str();
                 Expression { pair, kind: ExpressionKind::MessageSend(Box::new(receiver), message_name, vec![]) }
             },
+            &Rule::first_operator =>
+                Expression { pair, kind: 
+                    Self::to_expression(parse_result.into_inner().next().unwrap()).kind
+                },
             &Rule::literal_int =>
                 Expression { pair, kind: string_to_literal_int(parse_result.as_span().as_str()) },
             &Rule::binary_operation => {

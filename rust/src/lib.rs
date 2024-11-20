@@ -37,6 +37,25 @@ impl MiParser {
     }
 
     #[func]
+    fn inline_variable(
+        &self,
+        input: String,
+        start_line: i32,
+        start_column: i32,
+        end_line: i32,
+        end_column: i32) -> VariantArray {
+        let program = GDScriptParser::parse_to_program(input.as_str());
+        
+        let (new_program, selection) = program.inline_variable(
+            (start_line as usize + 1, start_column as usize + 1),
+             (end_line as usize + 1, end_column as usize + 1)
+        );
+        let selection_as_godot: Vec<VariantArray> = selection.iter().map(Self::line_col_range_to_godot_vec).collect();
+
+        varray![GString::from(new_program.to_string()), selection_as_godot.to_variant()]
+    }
+
+    #[func]
     fn extract_variable(
         &self,
         input: String,

@@ -104,8 +104,6 @@ func _input(event):
 
 func extract_variable():
 	var code_edit = _code_edit()
-	var previous_column = code_edit.get_caret_column()
-	var previous_line = code_edit.get_caret_line()
 	var start_column = code_edit.get_selection_origin_column()
 	var start_line = code_edit.get_selection_origin_line()
 	var end_column = code_edit.get_selection_to_column()
@@ -117,6 +115,23 @@ func extract_variable():
 	var selection = new_text_and_selection[1]
 	code_edit.text = new_text
 	select_ranges(selection)
+
+func inline_variable():
+	var code_edit = _code_edit()
+	var previous_column = code_edit.get_caret_column()
+	var previous_line = code_edit.get_caret_line()
+	var start_column = code_edit.get_selection_origin_column()
+	var start_line = code_edit.get_selection_origin_line()
+	var end_column = code_edit.get_selection_to_column()
+	var end_line = code_edit.get_selection_to_line()
+	var new_text_and_selection = mi_parser.inline_variable(
+		code_edit.text, start_line, start_column, end_line, end_column 
+	)
+	var new_text = new_text_and_selection[0]
+	var selection = new_text_and_selection[1]
+	code_edit.text = new_text
+	code_edit.select(previous_line, previous_column, previous_line, previous_column, 0)
+	code_edit.grab_focus()
 
 func select_ranges(ranges):
 	var code_edit: CodeEdit = _code_edit()

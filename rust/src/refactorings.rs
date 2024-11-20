@@ -73,6 +73,122 @@ impl<'a> Program<'a> {
         self.with_declarations(new_declarations)
     }
 
+    pub fn inline_variable(
+        &self,
+        start_line_column: LineCol,
+        end_line_column: LineCol
+    ) -> (Program, Vec<Range<LineCol>>) {
+        let selected_range = start_line_column .. end_line_column;
+        let maybe_declaration_idx = self.declarations.iter().position( |declaration|
+            {
+                let is_function = match declaration.kind {
+                    DeclarationKind::Function(_, _, _, _) => true,
+                    _ => false
+                };
+                let declaration_pair = declaration.pair.clone().unwrap();
+                let contains_selected_range = declaration_pair.contains_range(selected_range.clone());
+                is_function && contains_selected_range
+            }
+        );
+        if maybe_declaration_idx.is_none() {
+            return (self.clone(), vec![])
+        };
+        let declaration_idx = maybe_declaration_idx.unwrap();
+        let new_program = self.transform_declaration(declaration_idx, |function| {
+            let (f_name, f_type, f_params, statements) = match &function.kind {
+                DeclarationKind::Function(f_name, f_type, f_params, s) =>
+                    (f_name, f_type, f_params, s),
+                _ => return function.clone()
+            };
+            let maybe_statement_idx = statements.iter().position(|statement| {
+                statement.pair.clone().unwrap().contains_range(selected_range.clone())
+            });
+            if maybe_statement_idx.is_none() {
+                return function.clone()
+            }
+            let statement_idx = maybe_statement_idx.unwrap();
+            let (variable_name, expr_to_inline) = match &statements.get(statement_idx).unwrap().kind {
+                StatementKind::Pass | StatementKind::Unknown(_) | StatementKind::Expression(_) | StatementKind::Return(_) => return function.clone(),
+                StatementKind::VarDeclaration(var_name, expression ) => (var_name, expression),
+            };
+            let mut new_statements: Vec<Statement<'_>> = vec![];
+
+            for (idx, statement) in statements.clone().iter().enumerate() {
+                if idx == statement_idx {
+                } else {
+                    fn replace_variable_usage<'a>(
+                        old_expression: Expression<'a>,
+                        variable_usage: Expression<'a>,
+                        expression_to_inline: Expression<'a>
+                    ) -> Option<(Expression<'a>, Vec<Range<LineCol>>)> {
+                        match old_expression.clone().kind {
+                            ExpressionKind::Unknown(_) if old_expression.kind == variable_usage.kind => Some(
+                                (expression_to_inline, vec![old_expression.pair.unwrap().line_col_range()])
+                            ),
+                            ExpressionKind::LiteralInt(_) | ExpressionKind::Unknown(_) | ExpressionKind::LiteralSelf => None,
+                            ExpressionKind::BinaryOperation(expression1, op, expression2) => {
+                                let maybe_replacement1 = replace_variable_usage(*expression1.clone(), variable_usage.clone(), expression_to_inline.clone());
+                                let maybe_replacement2 = replace_variable_usage(*expression2.clone(), variable_usage, expression_to_inline);
+                                let mut lines_to_select = vec![];
+                                let mut new_expression1: Expression = *expression1;
+                                let mut new_expression2: Expression = *expression2;
+                                if let Some((new_expr1, mut lines_to_select1)) =  maybe_replacement1 {
+                                    lines_to_select.append(&mut lines_to_select1);
+                                    new_expression1 = new_expr1;
+                                }
+                                if let Some((new_expr2, mut lines_to_select2)) =  maybe_replacement2 {
+                                    lines_to_select.append(&mut lines_to_select2);
+                                    new_expression2 = new_expr2;
+                                }
+                                let kind = ExpressionKind::BinaryOperation(Box::new(new_expression1), op, Box::new(new_expression2));
+                                Some((Expression { pair: None, kind }, lines_to_select))
+                                },
+                            ExpressionKind::MessageSend(expression, message_name, vec) => {
+                                let maybe_replacement = replace_variable_usage(*expression.clone(), variable_usage.clone(), expression_to_inline.clone());
+                                match maybe_replacement {
+                                    Some((new_expr, lines_to_select)) => {
+                                        let kind = ExpressionKind::MessageSend(Box::new(new_expr), message_name, vec);
+                                        Some((Expression { pair: None, kind }, lines_to_select))
+                                    }
+                                        
+                                    None => None
+                                }
+                            },
+                        }
+                    }
+                    
+                    let variable_usage = Expression { pair: None, kind: ExpressionKind::Unknown(variable_name.to_string()) };
+                    match statement.clone().kind {
+                        StatementKind::Pass | StatementKind::Unknown(_) | StatementKind::Return(None) => new_statements.push(statement.clone()),
+                        StatementKind::VarDeclaration(var_name, expression) => {
+                            match replace_variable_usage(expression, variable_usage, expr_to_inline.clone()) {
+                                Some((new_expr, lines_to_select)) =>
+                                new_statements.push(Statement { pair: None, kind: StatementKind::VarDeclaration(var_name, new_expr) }),
+                                None => new_statements.push(statement.clone()),
+                            }
+                        },
+                        StatementKind::Expression(expression) => {
+                            match replace_variable_usage(expression, variable_usage, expr_to_inline.clone()) {
+                                Some((new_expr, lines_to_select)) =>
+                                new_statements.push(Statement { pair: None, kind: StatementKind::Expression(new_expr) }),
+                                None => new_statements.push(statement.clone()),
+                            }
+                        },
+                        StatementKind::Return(Some(expression)) => {
+                            match replace_variable_usage(expression, variable_usage, expr_to_inline.clone()) {
+                                Some((new_expr, lines_to_select)) =>
+                                new_statements.push(Statement { pair: None, kind: StatementKind::Return(Some(new_expr)) }),
+                                None => new_statements.push(statement.clone()),
+                            }
+                        }
+                    }
+                }
+            }
+            Declaration { pair: None, kind: DeclarationKind::Function(f_name, f_type.clone(), f_params.to_vec(), new_statements) }
+        });
+        (new_program, vec![])
+    }
+
     pub fn extract_variable(
         &self,
         start_line_column: (usize, usize),

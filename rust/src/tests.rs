@@ -2,7 +2,7 @@ use std::fmt::format;
 
 use crate::godot_ast_types::*;
 
-fn program(declarations: Vec<Declaration>) -> Program<'_> {
+fn create_program(declarations: Vec<Declaration>) -> Program<'_> {
     Program {
         is_tool: false,
         super_class: None,
@@ -25,6 +25,10 @@ fn statement_return<'a>(returned_expression: Expression<'a>) -> Statement<'a> {
 fn expr_self<'a>() -> Expression<'a> {
     Expression { pair: None, kind: ExpressionKind::LiteralSelf }
 }
+
+fn expr_variable_usage<'a>(variable_name: String) -> Expression<'a> {
+    expr_unknown(variable_name)
+} 
 
 fn expr_unknown<'a>(text: String) -> Expression<'a> {
     Expression { pair: None, kind: ExpressionKind::Unknown(text) }
@@ -251,6 +255,20 @@ mod tests {
     }
 
     #[test]
+    fn test_extract_variable_first_binary_operation_within_parentheses() {
+        let program = GDScriptParser::parse_to_program(
+            "func foo():\n\t(2 + 3) + 4\n",
+        );
+
+        let new_program = program.extract_variable((2,3), (2,6), "x").0;
+
+        assert_program_prints_to(
+            new_program,
+            "func foo():\n\tvar x = 2 + 3\n\tx + 4\n"
+        );
+    }
+
+    #[test]
     fn test_program_extract_variable_that_is_a_subexpression_of_what_is_being_returned(
     ) {
         let program = GDScriptParser::parse_to_program(
@@ -304,7 +322,7 @@ mod tests {
         let input = "func foo():\n\tvar x = 2\n";
 
         assert_parse_eq(input, 
-            program(
+            create_program(
                 vec![
                     dec_function("foo", None, vec![],
                         vec![statement_var_declaration("x", literal_int(2))]
@@ -401,6 +419,57 @@ func foo():
 \tvar y = 3
 \t2 + y
 ");
+    }
+
+    #[test]
+    fn test_program_inline_variable() {
+        let input = "func foo():\n\tvar suma = 2 + 3\n\tsuma\n";
+        let program = GDScriptParser::parse_to_program(input);
+
+        assert_parse_eq(input,
+        create_program(vec![
+            dec_function("foo", None, vec![], vec![
+                statement_var_declaration("suma",
+                    expression_binary_op(literal_int(2), "+", literal_int(3))
+                ),
+                statement_expression(expr_variable_usage("suma".to_string()))
+            ])
+        ]));
+
+        let new_program = program.inline_variable((2,6), (2,9)).0;
+
+        assert_program_prints_to(new_program, "func foo():\n\t2 + 3\n");
+    }
+    
+    #[test]
+    fn test_program_inline_variable_works_when_there_are_2_functions() {
+        let input = "func bar():\n\tpass\nfunc foo():\n\tvar suma = 2 + 3\n\tsuma\n";
+        let program = GDScriptParser::parse_to_program(input);
+
+        let new_program = program.inline_variable((4,6), (4,9)).0;
+
+        assert_program_prints_to(new_program, "func bar():\n\tpass\nfunc foo():\n\t2 + 3\n");
+    }
+    #[test]
+    fn test_program_inline_variable_inside_return() {
+        let input = "func foo():\n\tvar suma = 2 + 3\n\treturn suma\n";
+        let program = GDScriptParser::parse_to_program(input);
+
+        assert_parse_eq(input,
+            create_program(vec![
+                dec_function("foo", None, vec![], vec![
+                    statement_var_declaration("suma",
+                        expression_binary_op(literal_int(2), "+", literal_int(3))
+                    ),
+                    statement_return(
+                        expr_variable_usage("suma".to_string())
+                    )
+                ])
+            ]));
+
+        let new_program = program.inline_variable((2,6), (2,9)).0;
+
+        assert_program_prints_to(new_program, "func foo():\n\treturn 2 + 3\n");
     }
 
     #[test]
@@ -920,7 +989,7 @@ func foo():
                     vec![],
                     vec![
                         statement_pass(),
-                        statement_unknown("saracatunga = 3 + 7".to_string()),
+                        statement_expression(expr_unknown("saracatunga = 3 + 7".to_string())),
                     ],
                 )],
             },
