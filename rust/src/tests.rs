@@ -269,6 +269,34 @@ mod tests {
     }
 
     #[test]
+    fn test_extract_variable_when_first_member_of_binary_operation_is_message_send() {
+        let program = GDScriptParser::parse_to_program(
+            "func foo():\n\tself.bar() + 4\n",
+        );
+
+        let new_program = program.extract_variable((2,2), (2,11), "x").0;
+
+        assert_program_prints_to(
+            new_program,
+            "func foo():\n\tvar x = self.bar()\n\tx + 4\n"
+        );
+    }
+
+    #[test]
+    fn test_inline_variable_into_first_member_of_binary_operation() {
+        let program = GDScriptParser::parse_to_program(
+            "func foo():\n\tvar x = 4\n\tx + 2\n",
+        );
+
+        let new_program = program.inline_variable((2,6), (2,6)).0;
+
+        assert_program_prints_to(
+            new_program,
+            "func foo():\n\t4 + 2\n"
+        );
+    }
+
+    #[test]
     fn test_program_extract_variable_that_is_a_subexpression_of_what_is_being_returned(
     ) {
         let program = GDScriptParser::parse_to_program(

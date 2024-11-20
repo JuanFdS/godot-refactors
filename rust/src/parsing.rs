@@ -206,6 +206,8 @@ impl GDScriptParser {
                 Expression { pair, kind: 
                     Self::to_expression(parse_result.into_inner().next().unwrap()).kind
                 },
+            &Rule::variable_usage =>
+                Expression { pair, kind: ExpressionKind::VariableUsage(parse_result.as_span().as_str()) },
             &Rule::literal_int =>
                 Expression { pair, kind: string_to_literal_int(parse_result.as_span().as_str()) },
             &Rule::binary_operation => {

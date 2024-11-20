@@ -90,5 +90,6 @@ pub enum ExpressionKind<'a> {
     Unknown(String),
     // (receiver: Expression<'a>, message_name: &'a str, arguments: Vec<Expression<'a>>)
     LiteralSelf,
-    MessageSend(Box<Expression<'a>>, &'a str, Vec<Expression<'a>>)
+    MessageSend(Box<Expression<'a>>, &'a str, Vec<Expression<'a>>),
+    VariableUsage(&'a str)
 }

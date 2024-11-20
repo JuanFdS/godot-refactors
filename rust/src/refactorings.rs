@@ -118,17 +118,17 @@ impl<'a> Program<'a> {
                 } else {
                     fn replace_variable_usage<'a>(
                         old_expression: Expression<'a>,
-                        variable_usage: Expression<'a>,
+                        variable_name: String,
                         expression_to_inline: Expression<'a>
                     ) -> Option<(Expression<'a>, Vec<Range<LineCol>>)> {
                         match old_expression.clone().kind {
-                            ExpressionKind::Unknown(_) if old_expression.kind == variable_usage.kind => Some(
+                            ExpressionKind::Unknown(var_name) if var_name == variable_name => Some(
                                 (expression_to_inline, vec![old_expression.pair.unwrap().line_col_range()])
                             ),
                             ExpressionKind::LiteralInt(_) | ExpressionKind::Unknown(_) | ExpressionKind::LiteralSelf => None,
                             ExpressionKind::BinaryOperation(expression1, op, expression2) => {
-                                let maybe_replacement1 = replace_variable_usage(*expression1.clone(), variable_usage.clone(), expression_to_inline.clone());
-                                let maybe_replacement2 = replace_variable_usage(*expression2.clone(), variable_usage, expression_to_inline);
+                                let maybe_replacement1 = replace_variable_usage(*expression1.clone(), variable_name.clone(), expression_to_inline.clone());
+                                let maybe_replacement2 = replace_variable_usage(*expression2.clone(), variable_name, expression_to_inline);
                                 let mut lines_to_select = vec![];
                                 let mut new_expression1: Expression = *expression1;
                                 let mut new_expression2: Expression = *expression2;
@@ -144,7 +144,7 @@ impl<'a> Program<'a> {
                                 Some((Expression { pair: None, kind }, lines_to_select))
                                 },
                             ExpressionKind::MessageSend(expression, message_name, vec) => {
-                                let maybe_replacement = replace_variable_usage(*expression.clone(), variable_usage.clone(), expression_to_inline.clone());
+                                let maybe_replacement = replace_variable_usage(*expression.clone(), variable_name.clone(), expression_to_inline.clone());
                                 match maybe_replacement {
                                     Some((new_expr, lines_to_select)) => {
                                         let kind = ExpressionKind::MessageSend(Box::new(new_expr), message_name, vec);
@@ -154,28 +154,29 @@ impl<'a> Program<'a> {
                                     None => None
                                 }
                             },
+                            ExpressionKind::VariableUsage(var_name) if var_name == variable_name => Some((expression_to_inline, vec![])),
+                            ExpressionKind::VariableUsage(_) => None,
                         }
                     }
                     
-                    let variable_usage = Expression { pair: None, kind: ExpressionKind::Unknown(variable_name.to_string()) };
                     match statement.clone().kind {
                         StatementKind::Pass | StatementKind::Unknown(_) | StatementKind::Return(None) => new_statements.push(statement.clone()),
                         StatementKind::VarDeclaration(var_name, expression) => {
-                            match replace_variable_usage(expression, variable_usage, expr_to_inline.clone()) {
+                            match replace_variable_usage(expression, variable_name.to_string(), expr_to_inline.clone()) {
                                 Some((new_expr, lines_to_select)) =>
                                 new_statements.push(Statement { pair: None, kind: StatementKind::VarDeclaration(var_name, new_expr) }),
                                 None => new_statements.push(statement.clone()),
                             }
                         },
                         StatementKind::Expression(expression) => {
-                            match replace_variable_usage(expression, variable_usage, expr_to_inline.clone()) {
+                            match replace_variable_usage(expression, variable_name.to_string(), expr_to_inline.clone()) {
                                 Some((new_expr, lines_to_select)) =>
                                 new_statements.push(Statement { pair: None, kind: StatementKind::Expression(new_expr) }),
                                 None => new_statements.push(statement.clone()),
                             }
                         },
                         StatementKind::Return(Some(expression)) => {
-                            match replace_variable_usage(expression, variable_usage, expr_to_inline.clone()) {
+                            match replace_variable_usage(expression, variable_name.to_string(), expr_to_inline.clone()) {
                                 Some((new_expr, lines_to_select)) =>
                                 new_statements.push(Statement { pair: None, kind: StatementKind::Return(Some(new_expr)) }),
                                 None => new_statements.push(statement.clone()),
@@ -247,7 +248,8 @@ impl<'a> Program<'a> {
                         variable_usage: Expression<'a>,
                         text_range: Range<(usize, usize)>) -> (Expression<'a>, Expression<'a>) {
                         let (old_expr, new_expr) = match &expression.kind {
-                            ExpressionKind::LiteralInt(_) | ExpressionKind::Unknown(_) | ExpressionKind::LiteralSelf => {
+                            ExpressionKind::LiteralInt(_) | ExpressionKind::Unknown(_) |
+                                ExpressionKind::LiteralSelf | ExpressionKind::VariableUsage(_) => {
                                 (expression.clone(), variable_usage.clone())
                             },
                             ExpressionKind::BinaryOperation(

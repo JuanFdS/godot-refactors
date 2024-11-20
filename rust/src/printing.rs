@@ -77,6 +77,7 @@ impl Display for ExpressionKind<'_> {
                     panic!("TODO: manejar el caso en el que hay argumentos")
                 } else { format!("{expression}.{message_name}()") },
             ExpressionKind::LiteralSelf => "self".to_owned(),
+            ExpressionKind::VariableUsage(var_name) => var_name.to_string(),
         };
 
         write!(f, "{}", text)
