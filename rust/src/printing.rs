@@ -57,7 +57,7 @@ impl Display for Declaration<'_> {
     }
 }
 
-impl Display for Expression<'_> {
+impl Display for Expression {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let text = self.kind.to_string();
 
@@ -65,7 +65,7 @@ impl Display for Expression<'_> {
     }
 }
 
-impl Display for ExpressionKind<'_> {
+impl Display for ExpressionKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let text = match &self {
             ExpressionKind::LiteralInt(number) => number.to_string(),

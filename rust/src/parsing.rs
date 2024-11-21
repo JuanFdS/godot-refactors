@@ -47,7 +47,7 @@ impl GDScriptParser {
         Self::parse_to_ast(input, Rule::declaration, Self::to_declaration)
     }
 
-    pub fn parse_to_statement<'a>(input: &'a str) -> Statement {
+    pub fn parse_to_Statement(input: & str) -> Statement {
         let to_statement = |x| Self::to_statement(x).unwrap();
         Self::parse_to_ast(input, Rule::statement,  to_statement)
     }
@@ -162,7 +162,7 @@ impl GDScriptParser {
                     |p| p.as_rule() == Rule::identifier).unwrap();
                 let expression = inner_rules.find(|p| p.as_rule() == Rule::expression).unwrap();
                 Some(StatementKind::VarDeclaration(
-                    identifier.as_span().as_str(),
+                    identifier.as_span().as_str().into(),
                     Self::to_expression(expression)
                 ).to_statement(Some(parse_result)))
             },
@@ -196,12 +196,12 @@ impl GDScriptParser {
                 let mut inner = parse_result.into_inner();
                 let receiver = Self::to_expression(inner.next().unwrap());
                 let message_name = inner.next().unwrap().as_span().as_str();
-                Expression::new(pair, ExpressionKind::MessageSend(Box::new(receiver), message_name, vec![]))
+                Expression::new(pair, ExpressionKind::MessageSend(Box::new(receiver), message_name.into(), vec![]))
             },
             &Rule::first_operator =>
                 Expression::new(pair, Self::to_expression(parse_result.into_inner().next().unwrap()).kind),
             &Rule::variable_usage =>
-                Expression::new(pair, ExpressionKind::VariableUsage(parse_result.as_span().as_str())),
+                Expression::new(pair, ExpressionKind::VariableUsage(parse_result.as_span().as_str().into())),
             &Rule::literal_int =>
                 Expression::new(pair, string_to_literal_int(parse_result.as_span().as_str())),
             &Rule::binary_operation => {
@@ -209,7 +209,7 @@ impl GDScriptParser {
                 let lhs = Self::to_expression(parse_iterator.next().unwrap());
                 let operator = parse_iterator.next().unwrap().as_span().as_str();
                 let rhs = Self::to_expression(parse_iterator.next().unwrap());
-                Expression::new(pair, ExpressionKind::BinaryOperation(Box::new(lhs), operator, Box::new(rhs)))
+                Expression::new(pair, ExpressionKind::BinaryOperation(Box::new(lhs), operator.into(), Box::new(rhs)))
             },
             &Rule::unknown => {
                 Expression::new(pair, ExpressionKind::Unknown(parse_result.as_span().as_str().to_string()))

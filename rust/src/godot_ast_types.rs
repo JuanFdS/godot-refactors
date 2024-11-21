@@ -33,7 +33,7 @@ impl <'a> Declaration<'a> {
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub enum DeclarationKind<'a> {
     // Function(nombre, type, parametros, statements)
-    Function(&'a str, Option<String>, Vec<Parameter<'a>>, Vec<Statement<'a>>),
+    Function(&'a str, Option<String>, Vec<Parameter<'a>>, Vec<Statement>),
     EmptyLine,
     // Var(identifier, value, anotation)
     Var(String, &'a str, Option<Annotation<'a>>),
@@ -44,7 +44,7 @@ pub struct Function<'a> {
     pub name: &'a str,
     pub tipe: Option<String>,
     pub parameters: Vec<Parameter<'a>>,
-    pub statements: Vec<Statement<'a>>
+    pub statements: Vec<Statement>
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -67,13 +67,13 @@ pub enum AnnotationKind<'a> {
 }
 
 #[derive(Debug, Eq, Clone)]
-pub struct Statement<'a> {
-    pub kind: StatementKind<'a>,
+pub struct Statement {
+    pub kind: StatementKind,
     location: Option<Range<LineCol>>,
 }
 
-impl <'a> Statement<'a> {
-    pub fn new(pair: Option<Pair<'a, Rule>>, kind: StatementKind<'a>) -> Self {
+impl Statement {
+    pub fn new(pair: Option<Pair<Rule>>, kind: StatementKind) -> Self {
         Statement {
             kind,
             location: pair.map(|p| p.line_col_range())
@@ -84,32 +84,32 @@ impl <'a> Statement<'a> {
     }
 }
 
-impl<'a> PartialEq for Statement<'a> {
+impl<'a> PartialEq for Statement {
     fn eq(&self, other: &Self) -> bool {
         self.kind == other.kind
     }
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
-pub enum StatementKind<'a> {
+pub enum StatementKind {
     Pass,
     Unknown(String),
-    VarDeclaration(&'a str, Expression<'a>),
-    Expression(Expression<'a>),
-    Return(Option<Expression<'a>>)
+    VarDeclaration(String, Expression),
+    Expression(Expression),
+    Return(Option<Expression>)
 }
 
 type RulePair<'a> = Option<Pair<'a, Rule>>;
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 
-pub struct Expression<'a> {
-    pub kind: ExpressionKind<'a>,
+pub struct Expression {
+    pub kind: ExpressionKind,
     location: Option<Range<LineCol>>
 }
 
-impl <'a> Expression<'a> {
-    pub fn new(pair: Option<Pair<'a, Rule>>, kind: ExpressionKind<'a>) -> Self {
+impl Expression {
+    pub fn new(pair: Option<Pair<Rule>>, kind: ExpressionKind) -> Self {
         Expression {
             kind,
             location: pair.map(|p| p.line_col_range())
@@ -130,12 +130,12 @@ impl <'a> Expression<'a> {
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 
-pub enum ExpressionKind<'a> {
+pub enum ExpressionKind {
     LiteralInt(usize),
-    BinaryOperation(Box<Expression<'a>>, &'a str, Box<Expression<'a>>),
+    BinaryOperation(Box<Expression>, String, Box<Expression>),
     Unknown(String),
-    // (receiver: Expression<'a>, message_name: &'a str, arguments: Vec<Expression<'a>>)
+    // (receiver: Expression, message_name: &'a str, arguments: Vec<Expression>)
     LiteralSelf,
-    MessageSend(Box<Expression<'a>>, &'a str, Vec<Expression<'a>>),
-    VariableUsage(&'a str)
+    MessageSend(Box<Expression>, String, Vec<Expression>),
+    VariableUsage(String)
 }

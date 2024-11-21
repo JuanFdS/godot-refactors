@@ -8,56 +8,56 @@ fn create_program(declarations: Vec<Declaration>) -> Program<'_> {
     }
 }
 
-fn expr_message_send<'a>(receiver: Expression<'a>, message_name: &'a str, arguments: Vec<Expression<'a>>) -> Expression<'a> {
-    Expression::new(None, ExpressionKind::MessageSend(Box::new(receiver), message_name, arguments))
+fn expr_message_send<'a>(receiver: Expression, message_name: &'a str, arguments: Vec<Expression>) -> Expression {
+    Expression::new(None, ExpressionKind::MessageSend(Box::new(receiver), message_name.into(), arguments))
 }
 
-fn statement_empty_return<'a>() -> Statement<'a> {
+fn statement_empty_return<'a>() -> Statement {
     Statement::new(None, StatementKind::Return(None))
 }
 
-fn statement_return<'a>(returned_expression: Expression<'a>) -> Statement<'a> {
+fn statement_return<'a>(returned_expression: Expression) -> Statement {
     Statement::new(None, StatementKind::Return(Some(returned_expression)))
 }
 
-fn expr_self<'a>() -> Expression<'a> {
+fn expr_self<'a>() -> Expression {
     Expression::new(None, ExpressionKind::LiteralSelf)
 }
 
-fn expr_variable_usage<'a>(variable_name: String) -> Expression<'a> {
+fn expr_variable_usage<'a>(variable_name: String) -> Expression {
     expr_unknown(variable_name)
 } 
 
-fn expr_unknown<'a>(text: String) -> Expression<'a> {
+fn expr_unknown<'a>(text: String) -> Expression {
     Expression::new(None, ExpressionKind::Unknown(text))
 }
 
-fn expression_binary_op<'a>(a: Expression<'a>, op: &'a str, b: Expression<'a>) -> Expression<'a> {
-    Expression::new(None, ExpressionKind::BinaryOperation(Box::new(a), op, Box::new(b)))
+fn expression_binary_op<'a>(a: Expression, op: &'a str, b: Expression) -> Expression {
+    Expression::new(None, ExpressionKind::BinaryOperation(Box::new(a), op.into(), Box::new(b)))
 }
 
-fn literal_int<'a>(number: usize) -> Expression<'a> {
+fn literal_int<'a>(number: usize) -> Expression {
     Expression::new(None, ExpressionKind::LiteralInt(number))
 }
 
-fn _statement_with_kind<'a>(kind: StatementKind<'a>) -> Statement<'a> {
+fn _statement_with_kind<'a>(kind: StatementKind) -> Statement {
     kind.to_statement(None)
 }
 
-fn statement_expression<'a>(expression: Expression<'a>) -> Statement<'a> {
+fn statement_expression(expression: Expression) -> Statement {
     _statement_with_kind(StatementKind::Expression(expression))
 }
 
-fn statement_pass<'a>() -> Statement<'a> {
+fn statement_pass<'a>() -> Statement {
     _statement_with_kind(StatementKind::Pass)
 }
 
-fn statement_unknown<'a>(content: String) -> Statement<'a> {
+fn statement_unknown<'a>(content: String) -> Statement {
     _statement_with_kind(StatementKind::Unknown(content))
 }
 
-fn statement_var_declaration<'a>(name: &'a str, expression: Expression<'a>) -> Statement<'a> {
-    _statement_with_kind(StatementKind::VarDeclaration(name, expression))
+fn statement_var_declaration<'a>(name: &'a str, expression: Expression) -> Statement {
+    _statement_with_kind(StatementKind::VarDeclaration(name.into(), expression))
 }
 
 
@@ -65,7 +65,7 @@ fn dec_function<'a>(
     function_name: &'a str,
     function_type: Option<String>,
     parameters: Vec<Parameter<'a>>,
-    statements: Vec<Statement<'a>>,
+    statements: Vec<Statement>,
 ) -> Declaration<'a> {
     DeclarationKind::Function(function_name, function_type, parameters, statements)
         .to_declaration(None)
