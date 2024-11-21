@@ -177,11 +177,13 @@ func toggle_tool_button(selected_line: int):
 		var diff_lines = new_text.split("\n").size() - all_text.split("\n").size()
 		var previous_caret_line = code_edit.get_caret_line()
 		var previous_caret_column = code_edit.get_caret_column()
+		code_edit.begin_complex_operation()
 		code_edit.clear()
 		code_edit.insert_text(new_text, 0, 0)
 		#code_edit.text = new_text
 		code_edit.set_caret_column(previous_caret_column)
 		code_edit.set_caret_line(max(0, previous_caret_line + diff_lines))
+		code_edit.end_complex_operation()
 		#return
 		#var script: Script = EditorInterface.get_script_editor().get_current_script()
 		#script.source_code = code_edit.text
