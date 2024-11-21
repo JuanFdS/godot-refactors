@@ -897,19 +897,8 @@ func foo():
             program.toggle_tool_button(program.find_function_declaration_at_line(3).unwrap());
 
         assert_eq!(
-            refactored_program,
-            Program {
-                is_tool: true,
-                super_class: Some("Node".to_owned()),
-                declarations: vec![
-                    dec_var(
-                        "_foo".to_string(),
-                        "foo",
-                        Some(AnnotationKind::ExportToolButton("foo".into()).to_annotation())
-                    ),
-                    dec_function("foo", None, vec![], vec![statement_pass()])
-                ]
-            }
+            refactored_program.to_string(),
+            "@tool\nextends Node\n@export_tool_button(\"foo\") var _foo = foo\nfunc foo():\n\tpass\n"
         );
     }
 
@@ -935,13 +924,9 @@ func foo():
             program.toggle_tool_button(program.find_function_declaration_at_line(4).unwrap());
 
         assert_eq!(
-            refactored_program,
-            Program {
-                is_tool: true,
-                super_class: Some("Node".to_owned()),
-                declarations: vec![dec_function("foo", None, vec![], vec![statement_pass()])]
-            }
-        )
+            refactored_program.to_string(),
+            "@tool\nextends Node\nfunc foo():\n\tpass\n"
+        );
     }
 
     #[test]
