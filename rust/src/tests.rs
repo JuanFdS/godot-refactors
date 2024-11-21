@@ -9,7 +9,7 @@ fn create_program(declarations: Vec<Declaration>) -> Program<'_> {
 }
 
 fn expr_message_send<'a>(receiver: Expression<'a>, message_name: &'a str, arguments: Vec<Expression<'a>>) -> Expression<'a> {
-    Expression { pair: None, kind: ExpressionKind::MessageSend(Box::new(receiver), message_name, arguments) }
+    Expression::new(None, ExpressionKind::MessageSend(Box::new(receiver), message_name, arguments))
 }
 
 fn statement_empty_return<'a>() -> Statement<'a> {
@@ -21,7 +21,7 @@ fn statement_return<'a>(returned_expression: Expression<'a>) -> Statement<'a> {
 }
 
 fn expr_self<'a>() -> Expression<'a> {
-    Expression { pair: None, kind: ExpressionKind::LiteralSelf }
+    Expression::new(None, ExpressionKind::LiteralSelf)
 }
 
 fn expr_variable_usage<'a>(variable_name: String) -> Expression<'a> {
@@ -29,15 +29,15 @@ fn expr_variable_usage<'a>(variable_name: String) -> Expression<'a> {
 } 
 
 fn expr_unknown<'a>(text: String) -> Expression<'a> {
-    Expression { pair: None, kind: ExpressionKind::Unknown(text) }
+    Expression::new(None, ExpressionKind::Unknown(text))
 }
 
 fn expression_binary_op<'a>(a: Expression<'a>, op: &'a str, b: Expression<'a>) -> Expression<'a> {
-    Expression { pair: None, kind: ExpressionKind::BinaryOperation(Box::new(a), op, Box::new(b)) }
+    Expression::new(None, ExpressionKind::BinaryOperation(Box::new(a), op, Box::new(b)))
 }
 
 fn literal_int<'a>(number: usize) -> Expression<'a> {
-    Expression { pair: None, kind: ExpressionKind::LiteralInt(number) }
+    Expression::new(None, ExpressionKind::LiteralInt(number))
 }
 
 fn _statement_with_kind<'a>(kind: StatementKind<'a>) -> Statement<'a> {

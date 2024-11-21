@@ -135,7 +135,7 @@ impl<'a> Program<'a> {
                     ) -> Option<(Expression<'a>, Vec<Range<LineCol>>)> {
                         match old_expression.clone().kind {
                             ExpressionKind::Unknown(var_name) if var_name == variable_name => Some(
-                                (expression_to_inline, vec![old_expression.pair.unwrap().line_col_range()])
+                                (expression_to_inline, vec![old_expression.line_col_range()])
                             ),
                             ExpressionKind::LiteralInt(_) | ExpressionKind::Unknown(_) | ExpressionKind::LiteralSelf => None,
                             ExpressionKind::BinaryOperation(expression1, op, expression2) => {
@@ -153,14 +153,14 @@ impl<'a> Program<'a> {
                                     new_expression2 = new_expr2;
                                 }
                                 let kind = ExpressionKind::BinaryOperation(Box::new(new_expression1), op, Box::new(new_expression2));
-                                Some((Expression { pair: None, kind }, lines_to_select))
+                                Some((Expression::new(None, kind), lines_to_select))
                             }
                             ExpressionKind::MessageSend(expression, message_name, vec) => {
                                 let maybe_replacement = replace_variable_usage(*expression.clone(), variable_name.clone(), expression_to_inline.clone());
                                 match maybe_replacement {
                                     Some((new_expr, lines_to_select)) => {
                                         let kind = ExpressionKind::MessageSend(Box::new(new_expr), message_name, vec);
-                                        Some((Expression { pair: None, kind }, lines_to_select))
+                                        Some((Expression::new(None, kind), lines_to_select))
                                     }
 
                                     None => None
@@ -227,7 +227,7 @@ impl<'a> Program<'a> {
                     }
                     let statement_idx = maybe_statement_idx.unwrap();
 
-                    let variable_usage = Expression { pair: None, kind: ExpressionKind::Unknown(variable_name.to_owned()) };
+                    let variable_usage = Expression::new(None, ExpressionKind::Unknown(variable_name.to_owned()));
                     let old_statement = statements.get(statement_idx).unwrap().clone();
                     let (old_expr, new_statement) =
                         match old_statement.clone().kind {
@@ -267,12 +267,12 @@ impl<'a> Program<'a> {
                             ) => {
                                 let old_expr: Expression;
                                 let kind: ExpressionKind;
-                                if expression1.pair.clone().unwrap().contains_range(text_range.clone()) {
+                                if expression1.contains_range(&text_range) {
                                     let (inner_old_expr, inner_kind) =
                                         expression_replacement(*expression1.clone(), variable_usage.clone(), text_range);
                                     old_expr = inner_old_expr;
                                     kind = ExpressionKind::BinaryOperation(Box::new(inner_kind), op, expression2.clone())
-                                } else if expression2.pair.clone().unwrap().contains_range(text_range.clone()) {
+                                } else if expression2.contains_range(&text_range) {
                                     let (inner_old_expr, inner_kind) =
                                         expression_replacement(*expression2.clone(), variable_usage.clone(), text_range);
                                     old_expr = inner_old_expr;
@@ -281,22 +281,22 @@ impl<'a> Program<'a> {
                                     old_expr = expression.clone();
                                     kind = variable_usage.clone().kind;
                                 }
-                                (old_expr, Expression { pair: None, kind })
+                                (old_expr, Expression::new(None, kind))
                             }
                             ExpressionKind::MessageSend(receiver, method_name, arguments) => {
                                 let old_expr: Expression;
                                 let kind: ExpressionKind;
-                                if receiver.pair.clone().unwrap().contains_range(text_range.clone()) {
+                                if receiver.contains_range(&text_range) {
                                     old_expr = *receiver.clone();
                                     kind = ExpressionKind::MessageSend(Box::new(variable_usage.clone()), method_name, arguments.to_vec())
                                 } else {
                                     old_expr = expression.clone();
                                     kind = variable_usage.clone().kind;
                                 }
-                                (old_expr, Expression { pair: None, kind })
+                                (old_expr, Expression::new(None, kind))
                             }
                         };
-                        unsafe { pos_start_variable_usage = old_expr.pair.clone().unwrap().line_col_range().start };
+                        unsafe { pos_start_variable_usage = old_expr.line_col_range().start };
                         (old_expr, new_expr)
                     }
 
@@ -612,11 +612,7 @@ struct ExpressionReplacement<'a> {
 
 impl<'a> Expression<'a> {
     pub fn without_pairs(&self) -> Expression<'a> {
-        Expression { pair: None, kind: self.kind.without_pairs() }
-    }
-
-    pub fn contains_range(&self, range: &SelectionRange) -> bool {
-        self.pair.clone().is_some_and(|pair| pair.contains_range(range.clone()))
+        Expression::new(None, self.kind.without_pairs())
     }
 
     fn replace_expression_by_selection(
@@ -634,7 +630,7 @@ impl<'a> Expression<'a> {
                     new: expression_to_add.clone(),
                     range_of_new_expression:
                     {
-                        let (start_line, start_col) = self.pair.clone().unwrap().line_col();
+                        let (start_line, start_col) = self.line_col();
                         (start_line, start_col)..(start_line, start_col + expression_to_add.to_string().len())
                     },
                 })
@@ -658,12 +654,12 @@ impl<'a> Expression<'a> {
                 } else {
                     return None;
                 }
-                Some(ExpressionReplacement { old: old.clone(), new: Expression { pair: None, kind }, range_of_new_expression })
+                Some(ExpressionReplacement { old: old.clone(), new: Expression::new(None, kind), range_of_new_expression })
             }
             ExpressionKind::MessageSend(receiver, method_name, arguments) => {
                 let old: Expression;
                 let kind: ExpressionKind;
-                if receiver.pair.clone().unwrap().contains_range(selection_to_remove.clone()) {
+                if receiver.contains_range(&selection_to_remove) {
                     old = *receiver.clone();
                     kind = ExpressionKind::MessageSend(Box::new(expression_to_add.clone()), method_name, arguments.to_vec())
                 } else {
@@ -671,10 +667,10 @@ impl<'a> Expression<'a> {
                 }
                 Some(ExpressionReplacement {
                     old: old.clone(),
-                    new: Expression { pair: None, kind },
+                    new: Expression::new(None, kind),
                     range_of_new_expression:
                     {
-                        let (start_line, start_col) = old.clone().pair.clone().unwrap().line_col();
+                        let (start_line, start_col) = old.line_col();
                         (start_line, start_col)..(start_line, start_col + expression_to_add.to_string().len())
                     },
                 })
