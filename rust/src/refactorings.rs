@@ -506,9 +506,9 @@ impl<'a> DeclarationKind<'a> {
 }
 
 
-impl Parameter<'_> {
+impl Parameter {
     pub fn from(name: &'_ str) -> Parameter {
-        Parameter { pair: None, name }
+        Parameter::new(None, name)
     }
 }
 

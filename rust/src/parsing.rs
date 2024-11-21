@@ -109,7 +109,7 @@ impl GDScriptParser {
                 let mut inner_rules = parse_result.clone().into_inner();
                 let function_name = inner_rules.next().unwrap().as_span().as_str();
                 let mut next_match = inner_rules.next().unwrap();
-                let parameters: Vec<Parameter<'_>>;
+                let parameters: Vec<Parameter>;
                 if next_match.as_rule() == Rule::param_list {
                     parameters = next_match.into_inner()
                               .filter(|pair| pair.as_rule() == Rule::parameter)

@@ -32,9 +32,9 @@ impl <'a> Declaration<'a> {
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub enum DeclarationKind<'a> {
-    // Function(nombre, type, parametros, statements)
-    Function(&'a str, Option<String>, Vec<Parameter<'a>>, Vec<Statement>),
     EmptyLine,
+    // Function(nombre, type, parametros, statements)
+    Function(&'a str, Option<String>, Vec<Parameter>, Vec<Statement>),
     // Var(identifier, value, anotation)
     Var(String, &'a str, Option<Annotation<'a>>),
     Unknown(&'a str)
@@ -43,14 +43,21 @@ pub enum DeclarationKind<'a> {
 pub struct Function<'a> {
     pub name: &'a str,
     pub tipe: Option<String>,
-    pub parameters: Vec<Parameter<'a>>,
+    pub parameters: Vec<Parameter>,
     pub statements: Vec<Statement>
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct Parameter<'a> {
-    pub pair: Option<Pair<'a, Rule>>,
-    pub name: &'a str
+pub struct Parameter {
+    pub name: String
+}
+
+impl Parameter {
+    pub fn new(_pair: Option<Pair<Rule>>, name: &str) -> Self {
+        Parameter {
+            name: name.into()
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]

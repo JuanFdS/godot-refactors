@@ -64,7 +64,7 @@ fn statement_var_declaration<'a>(name: &'a str, expression: Expression) -> State
 fn dec_function<'a>(
     function_name: &'a str,
     function_type: Option<String>,
-    parameters: Vec<Parameter<'a>>,
+    parameters: Vec<Parameter>,
     statements: Vec<Statement>,
 ) -> Declaration<'a> {
     DeclarationKind::Function(function_name, function_type, parameters, statements)
@@ -87,8 +87,8 @@ fn dec_unknown<'a>(content: &'a str) -> Declaration<'a> {
     DeclarationKind::Unknown(content).to_declaration(None)
 }
 
-fn parameter<'a>(name: &'a str) -> Parameter<'a> {
-    Parameter { pair: None, name }
+fn parameter(name: &str) -> Parameter {
+    Parameter::new(None, name)
 }
 
 fn annotation_export() -> Annotation<'static> {
@@ -1036,14 +1036,8 @@ func foo():
                     "foo",
                     None,
                     vec![
-                        Parameter {
-                            pair: None,
-                            name: "arg1",
-                        },
-                        Parameter {
-                            pair: None,
-                            name: "arg2",
-                        },
+                        Parameter::new(None, "arg1"),
+                        Parameter::new(None, "arg2"),
                     ],
                     vec![statement_pass()],
                 )],
@@ -1060,14 +1054,8 @@ func foo():
                 "foo",
                 None,
                 vec![
-                    Parameter {
-                        pair: None,
-                        name: "arg1",
-                    },
-                    Parameter {
-                        pair: None,
-                        name: "arg2",
-                    },
+                    Parameter::new(None, "arg1"),
+                    Parameter::new(None, "arg2"),
                 ],
                 vec![statement_pass()],
             )],
@@ -1094,14 +1082,8 @@ func foo():
                     "foo",
                     Some("String".to_string()),
                     vec![
-                        Parameter {
-                            pair: None,
-                            name: "arg1",
-                        },
-                        Parameter {
-                            pair: None,
-                            name: "arg2",
-                        },
+                        Parameter::new(None, "arg1"),
+                        Parameter::new(None, "arg2"),
                     ],
                     vec![statement_pass()],
                 )],
@@ -1118,14 +1100,8 @@ func foo():
                 "foo",
                 Some("String".to_string()),
                 vec![
-                    Parameter {
-                        pair: None,
-                        name: "arg1",
-                    },
-                    Parameter {
-                        pair: None,
-                        name: "arg2",
-                    },
+                    Parameter::new(None, "arg1"),
+                    Parameter::new(None, "arg2"),
                 ],
                 vec![statement_pass()],
             )],

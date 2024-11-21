@@ -31,7 +31,7 @@ impl Display for Declaration<'_> {
                     .iter()
                     .cloned()
                     .map(|param| param.name)
-                    .collect::<Vec<&str>>()
+                    .collect::<Vec<String>>()
                     .join(", ");
                 let function_return_type: String =
                     return_type.clone().map_or_else(|| "".to_string(), |a_type| format!(" -> {}", a_type));
