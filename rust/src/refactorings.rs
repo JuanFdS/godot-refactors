@@ -89,7 +89,7 @@ impl<'a> Program<'a> {
 
     pub fn get_ocurrences_of_variable(&self, start_line_column: LineCol, end_line_column: LineCol) -> Vec<Range<LineCol>> {
         let selected_range = start_line_column..end_line_column;
-        let (declaration_idx, declaration) = match self.find_function_declaration_by_selection_range(&selected_range) {
+        let (_declaration_idx, _declaration) = match self.find_function_declaration_by_selection_range(&selected_range) {
             Some(result) => result,
             None => return vec![]
         };
@@ -175,21 +175,21 @@ impl<'a> Program<'a> {
                         StatementKind::Pass | StatementKind::Unknown(_) | StatementKind::Return(None) => new_statements.push(statement.clone()),
                         StatementKind::VarDeclaration(var_name, expression) => {
                             match replace_variable_usage(expression, variable_name.to_string(), expr_to_inline.clone()) {
-                                Some((new_expr, lines_to_select)) =>
+                                Some((new_expr, _lines_to_select)) =>
                                     new_statements.push(Statement { pair: None, kind: StatementKind::VarDeclaration(var_name, new_expr) }),
                                 None => new_statements.push(statement.clone()),
                             }
                         }
                         StatementKind::Expression(expression) => {
                             match replace_variable_usage(expression, variable_name.to_string(), expr_to_inline.clone()) {
-                                Some((new_expr, lines_to_select)) =>
+                                Some((new_expr, _lines_to_select)) =>
                                     new_statements.push(Statement { pair: None, kind: StatementKind::Expression(new_expr) }),
                                 None => new_statements.push(statement.clone()),
                             }
                         }
                         StatementKind::Return(Some(expression)) => {
                             match replace_variable_usage(expression, variable_name.to_string(), expr_to_inline.clone()) {
-                                Some((new_expr, lines_to_select)) =>
+                                Some((new_expr, _lines_to_select)) =>
                                     new_statements.push(Statement { pair: None, kind: StatementKind::Return(Some(new_expr)) }),
                                 None => new_statements.push(statement.clone()),
                             }

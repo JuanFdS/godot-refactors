@@ -155,7 +155,6 @@ impl GDScriptParser {
     }
 
     fn to_statement(parse_result: Pair<Rule>) -> Option<Statement> {
-        let foo = &debug_pair(&parse_result);
         match parse_result.as_rule() {
             Rule::var_declaration_statement => {
                 let mut inner_rules = parse_result.clone().into_inner();
