@@ -455,10 +455,6 @@ impl<'a> DeclarationKind {
     pub fn to_declaration(&self, pair: Option<Pair<'a, Rule>>) -> Declaration {
         Declaration::new(pair, self.clone())
     }
-
-    pub fn as_str(&self) -> String {
-        self.to_declaration(None).to_string()
-    }
 }
 
 
