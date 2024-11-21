@@ -52,10 +52,6 @@ fn statement_pass<'a>() -> Statement {
     _statement_with_kind(StatementKind::Pass)
 }
 
-fn statement_unknown<'a>(content: String) -> Statement {
-    _statement_with_kind(StatementKind::Unknown(content))
-}
-
 fn statement_var_declaration<'a>(name: &'a str, expression: Expression) -> Statement {
     _statement_with_kind(StatementKind::VarDeclaration(name.into(), expression))
 }
@@ -154,7 +150,7 @@ mod tests {
     fn test_program_extract_variable() {
         let program = GDScriptParser::parse_to_program("func foo():\n\t2+2\n");
 
-        let (new_program, lines_to_select) = program.extract_variable((2, 2), (2, 4), "coso");
+        let (new_program, _lines_to_select) = program.extract_variable((2, 2), (2, 4), "coso");
 
         assert_program_prints_to(new_program, "func foo():\n\tvar coso = 2 + 2\n\tcoso\n");
         // assert_eq!(lines_to_select, vec![(2,6) .. (2,9), (3,2) .. (2,5)]);
@@ -1036,8 +1032,8 @@ func foo():
                     "foo",
                     None,
                     vec![
-                        Parameter::new(None, "arg1"),
-                        Parameter::new(None, "arg2"),
+                        parameter("arg1"),
+                        parameter("arg2"),
                     ],
                     vec![statement_pass()],
                 )],
@@ -1054,8 +1050,8 @@ func foo():
                 "foo",
                 None,
                 vec![
-                    Parameter::new(None, "arg1"),
-                    Parameter::new(None, "arg2"),
+                    parameter("arg1"),
+                    parameter("arg2"),
                 ],
                 vec![statement_pass()],
             )],
@@ -1082,8 +1078,8 @@ func foo():
                     "foo",
                     Some("String".to_string()),
                     vec![
-                        Parameter::new(None, "arg1"),
-                        Parameter::new(None, "arg2"),
+                        parameter("arg1"),
+                        parameter("arg2"),
                     ],
                     vec![statement_pass()],
                 )],
@@ -1100,8 +1096,8 @@ func foo():
                 "foo",
                 Some("String".to_string()),
                 vec![
-                    Parameter::new(None, "arg1"),
-                    Parameter::new(None, "arg2"),
+                    parameter("arg1"),
+                    parameter("arg2"),
                 ],
                 vec![statement_pass()],
             )],

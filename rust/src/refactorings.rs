@@ -43,21 +43,10 @@ pub fn range_contains<T: PartialOrd>(outer: &Range<T>, inner: &Range<T>) -> bool
 pub type LineCol = (usize, usize);
 
 pub trait ExtendedPair {
-    fn contains_range(&self, range: Range<LineCol>) -> bool;
-
-    fn is_contained_in_range(&self, range: Range<LineCol>) -> bool;
-
     fn line_col_range(&self) -> Range<LineCol>;
 }
 
 impl<'a> ExtendedPair for Pair<'a, Rule> {
-    fn contains_range(&self, range: Range<LineCol>) -> bool {
-        range_contains(&self.line_col_range(), &range)
-    }
-
-    fn is_contained_in_range(&self, range: Range<LineCol>) -> bool {
-        range_contains(&range, &self.line_col_range())
-    }
 
     fn line_col_range(&self) -> Range<LineCol> {
         let start = self.line_col();
@@ -208,7 +197,7 @@ impl<'a> Program {
         end_line_column: (usize, usize),
         variable_name: &'a str,
     ) -> (Program, Vec<Range<LineCol>>) {
-        static mut pos_start_variable_usage: LineCol = (0, 0);
+        static mut POS_START_VARIABLE_USAGE: LineCol = (0, 0);
         let selected_range = start_line_column..end_line_column;
         let (declaration_idx, _declaration) =
             match self.find_function_declaration_by_selection_range(&selected_range) {
@@ -296,7 +285,7 @@ impl<'a> Program {
                                 (old_expr, Expression::new(None, kind))
                             }
                         };
-                        unsafe { pos_start_variable_usage = old_expr.line_col_range().start };
+                        unsafe { POS_START_VARIABLE_USAGE = old_expr.line_col_range().start };
                         (old_expr, new_expr)
                     }
 
@@ -329,7 +318,7 @@ impl<'a> Program {
             return (new_program, vec![]);
         };
 
-        let (start_line_variable_usage, start_column_variable_usage) = unsafe { pos_start_variable_usage };
+        let (start_line_variable_usage, start_column_variable_usage) = unsafe { POS_START_VARIABLE_USAGE };
 
         let start_column = "\tvar ".len();
         let range_where_declaration_happens =
@@ -457,30 +446,8 @@ impl<'a> Program {
     }
 }
 
-impl<'a> Function {
-    fn transform_statement(&self, index: usize, f: impl Fn(&Statement) -> Statement) -> Function {
-        let new_statements = self.statements.replace(index, f);
-        self.with_statements(new_statements)
-    }
-
-    fn with_statements(&self, new_statements: Vec<Statement>) -> Function {
-        Function { name: self.name.clone(), tipe: self.tipe.clone(), parameters: self.parameters.clone(), statements: new_statements }
-    }
-
-    fn to_declaration_kind(&self) -> DeclarationKind {
-        DeclarationKind::Function(self.name.clone(), self.tipe.clone(), self.parameters.clone(), self.statements.clone())
-    }
-}
-
 
 impl<'a> DeclarationKind {
-    fn to_function(&self) -> Option<Function> {
-        match self {
-            DeclarationKind::Function(name, tipe, parameters, statements) =>
-                Some(Function { name: name.into(), tipe: tipe.clone(), parameters: parameters.to_vec(), statements: statements.to_vec() }),
-            _ => None
-        }
-    }
 
     pub fn to_declaration(&self, pair: Option<Pair<'a, Rule>>) -> Declaration {
         Declaration::new(pair, self.clone())
@@ -488,19 +455,6 @@ impl<'a> DeclarationKind {
 
     pub fn as_str(&self) -> String {
         self.to_declaration(None).to_string()
-    }
-
-    fn without_pairs(&self) -> DeclarationKind {
-        match self {
-            DeclarationKind::Function(_, _, _, _) => self.clone(),
-            DeclarationKind::EmptyLine => self.clone(),
-            DeclarationKind::Var(name, value, maybe_annotation) =>
-                DeclarationKind::Var(name.to_string(), value.into(), maybe_annotation.clone().map(|annotation| {
-                    let this = &annotation;
-                    Annotation::new(None, this.kind.clone())
-                })),
-            DeclarationKind::Unknown(_) => self.clone(),
-        }
     }
 }
 
@@ -525,10 +479,6 @@ impl Annotation {
             AnnotationKind::ExportToolButton(some_string) =>
                 format!("@export_tool_button(\"{some_string}\")"),
         }
-    }
-
-    fn without_pairs(&self) -> Annotation {
-        Annotation::new(None, self.kind.clone())
     }
 }
 
@@ -603,79 +553,79 @@ impl StatementKind {
     }
 }
 
-struct ExpressionReplacement {
-    old: Expression,
-    new: Expression,
-    range_of_new_expression: SelectionRange,
-}
+// struct ExpressionReplacement {
+//     old: Expression,
+//     new: Expression,
+//     range_of_new_expression: SelectionRange,
+// }
 
 impl<'a> Expression {
     pub fn without_pairs(&self) -> Expression {
         Expression::new(None, self.kind.without_pairs())
     }
 
-    fn replace_expression_by_selection(
-        &self,
-        selection_to_remove: SelectionRange,
-        expression_to_add: Expression) -> Option<ExpressionReplacement> {
-        if !self.contains_range(&selection_to_remove) {
-            return None;
-        };
-        match &self.kind {
-            ExpressionKind::LiteralInt(_) | ExpressionKind::Unknown(_) |
-            ExpressionKind::LiteralSelf | ExpressionKind::VariableUsage(_) => {
-                Some(ExpressionReplacement {
-                    old: self.clone(),
-                    new: expression_to_add.clone(),
-                    range_of_new_expression:
-                    {
-                        let (start_line, start_col) = self.line_col();
-                        (start_line, start_col)..(start_line, start_col + expression_to_add.to_string().len())
-                    },
-                })
-            }
-            ExpressionKind::BinaryOperation(
-                expression1,
-                op,
-                expression2
-            ) => {
-                let old: Expression;
-                let kind: ExpressionKind;
-                let range_of_new_expression: SelectionRange;
-                if let Some(replacement) = expression1.replace_expression_by_selection(selection_to_remove.clone(), expression_to_add.clone()) {
-                    old = replacement.old;
-                    kind = ExpressionKind::BinaryOperation(Box::new(replacement.new), op.into(), expression2.clone());
-                    range_of_new_expression = replacement.range_of_new_expression;
-                } else if let Some(replacement) = expression2.replace_expression_by_selection(selection_to_remove.clone(), expression_to_add.clone()) {
-                    old = replacement.old;
-                    kind = ExpressionKind::BinaryOperation(expression1.clone(), op.into(), Box::new(replacement.new));
-                    range_of_new_expression = replacement.range_of_new_expression;
-                } else {
-                    return None;
-                }
-                Some(ExpressionReplacement { old: old.clone(), new: Expression::new(None, kind), range_of_new_expression })
-            }
-            ExpressionKind::MessageSend(receiver, method_name, arguments) => {
-                let old: Expression;
-                let kind: ExpressionKind;
-                if receiver.contains_range(&selection_to_remove) {
-                    old = *receiver.clone();
-                    kind = ExpressionKind::MessageSend(Box::new(expression_to_add.clone()), method_name.into(), arguments.to_vec())
-                } else {
-                    return None;
-                }
-                Some(ExpressionReplacement {
-                    old: old.clone(),
-                    new: Expression::new(None, kind),
-                    range_of_new_expression:
-                    {
-                        let (start_line, start_col) = old.line_col();
-                        (start_line, start_col)..(start_line, start_col + expression_to_add.to_string().len())
-                    },
-                })
-            }
-        }
-    }
+    // fn replace_expression_by_selection(
+    //     &self,
+    //     selection_to_remove: SelectionRange,
+    //     expression_to_add: Expression) -> Option<ExpressionReplacement> {
+    //     if !self.contains_range(&selection_to_remove) {
+    //         return None;
+    //     };
+    //     match &self.kind {
+    //         ExpressionKind::LiteralInt(_) | ExpressionKind::Unknown(_) |
+    //         ExpressionKind::LiteralSelf | ExpressionKind::VariableUsage(_) => {
+    //             Some(ExpressionReplacement {
+    //                 old: self.clone(),
+    //                 new: expression_to_add.clone(),
+    //                 range_of_new_expression:
+    //                 {
+    //                     let (start_line, start_col) = self.line_col();
+    //                     (start_line, start_col)..(start_line, start_col + expression_to_add.to_string().len())
+    //                 },
+    //             })
+    //         }
+    //         ExpressionKind::BinaryOperation(
+    //             expression1,
+    //             op,
+    //             expression2
+    //         ) => {
+    //             let old: Expression;
+    //             let kind: ExpressionKind;
+    //             let range_of_new_expression: SelectionRange;
+    //             if let Some(replacement) = expression1.replace_expression_by_selection(selection_to_remove.clone(), expression_to_add.clone()) {
+    //                 old = replacement.old;
+    //                 kind = ExpressionKind::BinaryOperation(Box::new(replacement.new), op.into(), expression2.clone());
+    //                 range_of_new_expression = replacement.range_of_new_expression;
+    //             } else if let Some(replacement) = expression2.replace_expression_by_selection(selection_to_remove.clone(), expression_to_add.clone()) {
+    //                 old = replacement.old;
+    //                 kind = ExpressionKind::BinaryOperation(expression1.clone(), op.into(), Box::new(replacement.new));
+    //                 range_of_new_expression = replacement.range_of_new_expression;
+    //             } else {
+    //                 return None;
+    //             }
+    //             Some(ExpressionReplacement { old: old.clone(), new: Expression::new(None, kind), range_of_new_expression })
+    //         }
+    //         ExpressionKind::MessageSend(receiver, method_name, arguments) => {
+    //             let old: Expression;
+    //             let kind: ExpressionKind;
+    //             if receiver.contains_range(&selection_to_remove) {
+    //                 old = *receiver.clone();
+    //                 kind = ExpressionKind::MessageSend(Box::new(expression_to_add.clone()), method_name.into(), arguments.to_vec())
+    //             } else {
+    //                 return None;
+    //             }
+    //             Some(ExpressionReplacement {
+    //                 old: old.clone(),
+    //                 new: Expression::new(None, kind),
+    //                 range_of_new_expression:
+    //                 {
+    //                     let (start_line, start_col) = old.line_col();
+    //                     (start_line, start_col)..(start_line, start_col + expression_to_add.to_string().len())
+    //                 },
+    //             })
+    //         }
+    //     }
+    // }
 }
 
 impl<'a> ExpressionKind {

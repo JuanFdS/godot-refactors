@@ -40,13 +40,6 @@ pub enum DeclarationKind {
     Unknown(String)
 }
 
-pub struct Function {
-    pub name: String,
-    pub tipe: Option<String>,
-    pub parameters: Vec<Parameter>,
-    pub statements: Vec<Statement>
-}
-
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Parameter {
     pub name: String
@@ -115,8 +108,6 @@ pub enum StatementKind {
     Return(Option<Expression>)
 }
 
-type RulePair<'a> = Option<Pair<'a, Rule>>;
-
 #[derive(Debug, Eq, PartialEq, Clone)]
 
 pub struct Expression {
@@ -139,9 +130,9 @@ impl Expression {
         self.location.as_ref().unwrap().clone()
     }
 
-    pub fn line_col(&self) -> LineCol {
-        self.line_col_range().start
-    }
+    // pub fn line_col(&self) -> LineCol {
+    //     self.line_col_range().start
+    // }
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]

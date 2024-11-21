@@ -2,14 +2,15 @@ use crate::godot_ast_types::*;
 use pest::Parser;
 use pest_derive::Parser;
 
-struct DebugPair<'a> {
+struct _DebugPair<'a> {
     all_input: &'a str,
     span: &'a str,
     rule: Rule
 }
 
-fn debug_pair<'a>(pair: &Pair<'a, Rule>) -> DebugPair<'a> {
-    DebugPair {
+
+fn _debug_pair<'a>(pair: &Pair<'a, Rule>) -> _DebugPair<'a> {
+    _DebugPair {
         all_input: pair.get_input(),
         span: pair.as_span().as_str(),
         rule: pair.as_rule()
@@ -45,11 +46,6 @@ impl GDScriptParser {
 
     pub fn parse_to_declaration<'a>(input: &'a str) -> Declaration {
         Self::parse_to_ast(input, Rule::declaration, Self::to_declaration)
-    }
-
-    pub fn parse_to_Statement(input: & str) -> Statement {
-        let to_statement = |x| Self::to_statement(x).unwrap();
-        Self::parse_to_ast(input, Rule::statement,  to_statement)
     }
 
     fn to_annotation(parse_result: Pair<Rule>) -> Annotation {
