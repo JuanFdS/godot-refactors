@@ -122,7 +122,7 @@ impl MiParser {
         let donde_empieza = archivo.lines().skip(line as usize).collect::<Vec<&str>>().join("\n");
 
         match GDScriptParser::parse_to_declaration(&donde_empieza).kind {
-            f @ DeclarationKind::Function(_, _, _, _) => GString::from(f.as_str()),
+            f @ DeclarationKind::Function { .. } => GString::from(f.as_str()),
             _ => GString::from("")
         }
     }

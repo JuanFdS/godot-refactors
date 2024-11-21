@@ -25,7 +25,7 @@ impl Display for Program {
 impl Display for Declaration {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let text = match &self.kind {
-            DeclarationKind::Function(name, return_type, parameters, statements) => {
+            DeclarationKind::Function { name, return_type, parameters, statements } => {
                 let identation = "\t";
                 let param_list = parameters
                     .iter()
@@ -48,7 +48,7 @@ impl Display for Declaration {
                 )
             }
             DeclarationKind::EmptyLine => "".to_string(),
-            DeclarationKind::Var(identifier, value, annotation) =>
+            DeclarationKind::Var { identifier, value, annotation } =>
                 format!("{annotation}var {identifier} = {value}", identifier=identifier, value=value,annotation=annotation.clone().map(|x| x.as_str() + " ").unwrap_or("".to_string())),
             DeclarationKind::Unknown(string) => string.to_string(),
         };

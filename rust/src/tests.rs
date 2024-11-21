@@ -63,7 +63,7 @@ fn dec_function(
     parameters: Vec<Parameter>,
     statements: Vec<Statement>,
 ) -> Declaration {
-    DeclarationKind::Function(function_name.into(), function_type, parameters, statements)
+    DeclarationKind::Function { name: function_name.into(), return_type: function_type, parameters, statements }
         .to_declaration(None)
 }
 
@@ -76,7 +76,7 @@ fn dec_var(
     value: &str,
     annotation: Option<Annotation>,
 ) -> Declaration {
-    DeclarationKind::Var(identifier, value.into(), annotation).to_declaration(None)
+    DeclarationKind::Var { identifier, value: value.into(), annotation }.to_declaration(None)
 }
 
 fn dec_unknown(content: &str) -> Declaration {

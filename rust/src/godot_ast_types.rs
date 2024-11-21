@@ -40,10 +40,8 @@ pub type Declaration = AstNode<DeclarationKind>;
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub enum DeclarationKind {
     EmptyLine,
-    // Function(nombre, type, parametros, statements)
-    Function(String, Option<String>, Vec<Parameter>, Vec<Statement>),
-    // Var(identifier, value, anotation)
-    Var(String, String, Option<Annotation>),
+    Function { name: String, return_type: Option<String>, parameters: Vec<Parameter>, statements: Vec<Statement>},
+    Var { identifier: String, value: String, annotation: Option<Annotation> },
     Unknown(String)
 }
 
