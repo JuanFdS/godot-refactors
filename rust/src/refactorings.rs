@@ -1,7 +1,7 @@
 use pest::iterators::Pair;
 
-use crate::{godot_ast_types::*, parsing::{GDScriptParser, Rule}};
-use std::{cell::Cell, ops::Range};
+use crate::{godot_ast_types::*, parsing::Rule};
+use std::ops::Range;
 
 pub trait Replace<T: Clone> {
     fn replace_mut(&mut self, index: usize, f: impl Fn(&T) -> T) -> T;
@@ -30,19 +30,19 @@ impl<T: Clone> Replace<T> for Vec<T> {
                 new_vector.push(new_value);
                 new_vector.swap_remove(index);
                 new_vector
-            },
+            }
             None => panic!("Index out of bounds"),
         }
     }
 }
 
-fn range_contains<T: PartialOrd>(outer: std::ops::Range<T>, inner: std::ops::Range<T>) -> bool {
+pub fn range_contains<T: PartialOrd>(outer: &Range<T>, inner: &Range<T>) -> bool {
     outer.start <= inner.start && outer.end >= inner.end
 }
 
 pub type LineCol = (usize, usize);
 
-trait ExtendedPair {
+pub trait ExtendedPair {
     fn contains_range(&self, range: Range<LineCol>) -> bool;
 
     fn is_contained_in_range(&self, range: Range<LineCol>) -> bool;
@@ -52,13 +52,13 @@ trait ExtendedPair {
 
 impl<'a> ExtendedPair for Pair<'a, Rule> {
     fn contains_range(&self, range: Range<LineCol>) -> bool {
-        range_contains(self.line_col_range(), range)
+        range_contains(&self.line_col_range(), &range)
     }
 
     fn is_contained_in_range(&self, range: Range<LineCol>) -> bool {
-        range_contains(range, self.line_col_range())
+        range_contains(&range, &self.line_col_range())
     }
-    
+
     fn line_col_range(&self) -> Range<LineCol> {
         let start = self.line_col();
         let end = self.as_span().end_pos().line_col();
@@ -69,16 +69,14 @@ impl<'a> ExtendedPair for Pair<'a, Rule> {
 type SelectionRange = Range<LineCol>;
 
 impl<'a> Program<'a> {
-
     fn find_function_declaration_by_selection_range(&self, range: &SelectionRange) -> Option<(usize, &Declaration)> {
-        self.declarations.iter().enumerate().find( |(_idx, declaration)|
+        self.declarations.iter().enumerate().find(|(_idx, declaration)|
             {
                 let is_function = match declaration.kind {
                     DeclarationKind::Function(_, _, _, _) => true,
                     _ => false
                 };
-                let declaration_pair = declaration.pair.clone().unwrap();
-                let contains_selected_range = declaration_pair.contains_range(range.clone());
+                let contains_selected_range = declaration.contains_range(range);
                 is_function && contains_selected_range
             }
         )
@@ -90,7 +88,7 @@ impl<'a> Program<'a> {
     }
 
     pub fn get_ocurrences_of_variable(&self, start_line_column: LineCol, end_line_column: LineCol) -> Vec<Range<LineCol>> {
-        let selected_range = start_line_column .. end_line_column;
+        let selected_range = start_line_column..end_line_column;
         let (declaration_idx, declaration) = match self.find_function_declaration_by_selection_range(&selected_range) {
             Some(result) => result,
             None => return vec![]
@@ -101,14 +99,14 @@ impl<'a> Program<'a> {
     pub fn inline_variable(
         &self,
         start_line_column: LineCol,
-        end_line_column: LineCol
+        end_line_column: LineCol,
     ) -> (Program, Vec<Range<LineCol>>) {
-        let selected_range = start_line_column .. end_line_column;
+        let selected_range = start_line_column..end_line_column;
         let (declaration_idx, _declaration) =
             match self.find_function_declaration_by_selection_range(&selected_range) {
                 Some(result) => result,
                 None => return (self.clone(), vec![])
-        };
+            };
         let new_program = self.transform_declaration(declaration_idx, |function| {
             let (f_name, f_type, f_params, statements) = match &function.kind {
                 DeclarationKind::Function(f_name, f_type, f_params, s) =>
@@ -119,22 +117,21 @@ impl<'a> Program<'a> {
                 statement.pair.clone().unwrap().contains_range(selected_range.clone())
             });
             if maybe_statement_idx.is_none() {
-                return function.clone()
+                return function.clone();
             }
             let statement_idx = maybe_statement_idx.unwrap();
             let (variable_name, expr_to_inline) = match &statements.get(statement_idx).unwrap().kind {
                 StatementKind::Pass | StatementKind::Unknown(_) | StatementKind::Expression(_) | StatementKind::Return(_) => return function.clone(),
-                StatementKind::VarDeclaration(var_name, expression ) => (var_name, expression),
+                StatementKind::VarDeclaration(var_name, expression) => (var_name, expression),
             };
             let mut new_statements: Vec<Statement<'_>> = vec![];
 
             for (idx, statement) in statements.clone().iter().enumerate() {
-                if idx == statement_idx {
-                } else {
+                if idx == statement_idx {} else {
                     fn replace_variable_usage<'a>(
                         old_expression: Expression<'a>,
                         variable_name: String,
-                        expression_to_inline: Expression<'a>
+                        expression_to_inline: Expression<'a>,
                     ) -> Option<(Expression<'a>, Vec<Range<LineCol>>)> {
                         match old_expression.clone().kind {
                             ExpressionKind::Unknown(var_name) if var_name == variable_name => Some(
@@ -147,17 +144,17 @@ impl<'a> Program<'a> {
                                 let mut lines_to_select = vec![];
                                 let mut new_expression1: Expression = *expression1;
                                 let mut new_expression2: Expression = *expression2;
-                                if let Some((new_expr1, mut lines_to_select1)) =  maybe_replacement1 {
+                                if let Some((new_expr1, mut lines_to_select1)) = maybe_replacement1 {
                                     lines_to_select.append(&mut lines_to_select1);
                                     new_expression1 = new_expr1;
                                 }
-                                if let Some((new_expr2, mut lines_to_select2)) =  maybe_replacement2 {
+                                if let Some((new_expr2, mut lines_to_select2)) = maybe_replacement2 {
                                     lines_to_select.append(&mut lines_to_select2);
                                     new_expression2 = new_expr2;
                                 }
                                 let kind = ExpressionKind::BinaryOperation(Box::new(new_expression1), op, Box::new(new_expression2));
                                 Some((Expression { pair: None, kind }, lines_to_select))
-                                },
+                            }
                             ExpressionKind::MessageSend(expression, message_name, vec) => {
                                 let maybe_replacement = replace_variable_usage(*expression.clone(), variable_name.clone(), expression_to_inline.clone());
                                 match maybe_replacement {
@@ -165,42 +162,42 @@ impl<'a> Program<'a> {
                                         let kind = ExpressionKind::MessageSend(Box::new(new_expr), message_name, vec);
                                         Some((Expression { pair: None, kind }, lines_to_select))
                                     }
-                                        
+
                                     None => None
                                 }
-                            },
+                            }
                             ExpressionKind::VariableUsage(var_name) if var_name == variable_name => Some((expression_to_inline, vec![])),
                             ExpressionKind::VariableUsage(_) => None,
                         }
                     }
-                    
+
                     match statement.clone().kind {
                         StatementKind::Pass | StatementKind::Unknown(_) | StatementKind::Return(None) => new_statements.push(statement.clone()),
                         StatementKind::VarDeclaration(var_name, expression) => {
                             match replace_variable_usage(expression, variable_name.to_string(), expr_to_inline.clone()) {
                                 Some((new_expr, lines_to_select)) =>
-                                new_statements.push(Statement { pair: None, kind: StatementKind::VarDeclaration(var_name, new_expr) }),
+                                    new_statements.push(Statement { pair: None, kind: StatementKind::VarDeclaration(var_name, new_expr) }),
                                 None => new_statements.push(statement.clone()),
                             }
-                        },
+                        }
                         StatementKind::Expression(expression) => {
                             match replace_variable_usage(expression, variable_name.to_string(), expr_to_inline.clone()) {
                                 Some((new_expr, lines_to_select)) =>
-                                new_statements.push(Statement { pair: None, kind: StatementKind::Expression(new_expr) }),
+                                    new_statements.push(Statement { pair: None, kind: StatementKind::Expression(new_expr) }),
                                 None => new_statements.push(statement.clone()),
                             }
-                        },
+                        }
                         StatementKind::Return(Some(expression)) => {
                             match replace_variable_usage(expression, variable_name.to_string(), expr_to_inline.clone()) {
                                 Some((new_expr, lines_to_select)) =>
-                                new_statements.push(Statement { pair: None, kind: StatementKind::Return(Some(new_expr)) }),
+                                    new_statements.push(Statement { pair: None, kind: StatementKind::Return(Some(new_expr)) }),
                                 None => new_statements.push(statement.clone()),
                             }
                         }
                     }
                 }
             }
-            Declaration { pair: None, kind: DeclarationKind::Function(f_name, f_type.clone(), f_params.to_vec(), new_statements) }
+            Declaration::new(None, DeclarationKind::Function(f_name, f_type.clone(), f_params.to_vec(), new_statements))
         });
         (new_program, vec![])
     }
@@ -209,15 +206,15 @@ impl<'a> Program<'a> {
         &self,
         start_line_column: (usize, usize),
         end_line_column: (usize, usize),
-        variable_name: &'a str
+        variable_name: &'a str,
     ) -> (Program, Vec<Range<LineCol>>) {
         static mut pos_start_variable_usage: LineCol = (0, 0);
-        let selected_range = start_line_column .. end_line_column;
+        let selected_range = start_line_column..end_line_column;
         let (declaration_idx, _declaration) =
-        match self.find_function_declaration_by_selection_range(&selected_range) {
-            Some(result) => result,
-            None => return (self.clone(), vec![])
-        };
+            match self.find_function_declaration_by_selection_range(&selected_range) {
+                Some(result) => result,
+                None => return (self.clone(), vec![])
+            };
         let this = &self;
         let f = move |declaration: &Declaration<'a>| -> Declaration<'_> {
             match declaration.clone().kind {
@@ -246,13 +243,13 @@ impl<'a> Program<'a> {
                             StatementKind::Expression(expression) => {
                                 let (old_expr, new_expr) = expression_replacement(expression.clone(), variable_usage, selected_range.clone());
                                 (old_expr, StatementKind::Expression(new_expr).to_statement(None))
-                            },
+                            }
                             StatementKind::Return(Some(expression)) => {
                                 let (old_expr, new_expr) = expression_replacement(expression.clone(), variable_usage, selected_range.clone());
                                 (old_expr, StatementKind::Return(Some(new_expr)).to_statement(None))
                             }
                             _ => return declaration.clone()
-                    };
+                        };
 
                     fn expression_replacement<'a>(
                         expression: Expression<'a>,
@@ -260,9 +257,9 @@ impl<'a> Program<'a> {
                         text_range: Range<(usize, usize)>) -> (Expression<'a>, Expression<'a>) {
                         let (old_expr, new_expr) = match &expression.kind {
                             ExpressionKind::LiteralInt(_) | ExpressionKind::Unknown(_) |
-                                ExpressionKind::LiteralSelf | ExpressionKind::VariableUsage(_) => {
+                            ExpressionKind::LiteralSelf | ExpressionKind::VariableUsage(_) => {
                                 (expression.clone(), variable_usage.clone())
-                            },
+                            }
                             ExpressionKind::BinaryOperation(
                                 expression1,
                                 op,
@@ -285,7 +282,7 @@ impl<'a> Program<'a> {
                                     kind = variable_usage.clone().kind;
                                 }
                                 (old_expr, Expression { pair: None, kind })
-                            },
+                            }
                             ExpressionKind::MessageSend(receiver, method_name, arguments) => {
                                 let old_expr: Expression;
                                 let kind: ExpressionKind;
@@ -297,7 +294,7 @@ impl<'a> Program<'a> {
                                     kind = variable_usage.clone().kind;
                                 }
                                 (old_expr, Expression { pair: None, kind })
-                            },
+                            }
                         };
                         unsafe { pos_start_variable_usage = old_expr.pair.clone().unwrap().line_col_range().start };
                         (old_expr, new_expr)
@@ -309,7 +306,7 @@ impl<'a> Program<'a> {
                     new_statements.insert(statement_idx, new_statement.to_statement(None));
 
                     DeclarationKind::Function(function_name, function_type, params, new_statements).to_declaration(None)
-                },
+                }
                 _ => panic!()
             }
         };
@@ -322,24 +319,24 @@ impl<'a> Program<'a> {
                     new_vector.push(new_value);
                     new_vector.swap_remove(declaration_idx);
                     new_vector
-                },
+                }
                 None => panic!("Index out of bounds"),
             }
         };
         let new_program = this.with_declarations(new_declarations);
 
         if self.without_pairs() == new_program.without_pairs() {
-            return (new_program, vec![])
+            return (new_program, vec![]);
         };
 
         let (start_line_variable_usage, start_column_variable_usage) = unsafe { pos_start_variable_usage };
 
         let start_column = "\tvar ".len();
         let range_where_declaration_happens =
-            (start_line_variable_usage - 1, start_column) .. (start_line_variable_usage - 1, start_column + variable_name.len());
+            (start_line_variable_usage - 1, start_column)..(start_line_variable_usage - 1, start_column + variable_name.len());
 
         let range_where_variable_usage_happens =
-            (start_line_variable_usage, start_column_variable_usage - 1) .. (start_line_variable_usage, start_column_variable_usage - 1 + variable_name.len());
+            (start_line_variable_usage, start_column_variable_usage - 1)..(start_line_variable_usage, start_column_variable_usage - 1 + variable_name.len());
 
         (new_program, vec![range_where_declaration_happens, range_where_variable_usage_happens])
     }
@@ -348,7 +345,7 @@ impl<'a> Program<'a> {
         Program {
             is_tool: self.is_tool,
             super_class: self.super_class.clone(),
-            declarations: self.declarations.iter().map(|declaration|declaration.without_pairs()).collect::<Vec<Declaration>>()
+            declarations: self.declarations.iter().map(|declaration| declaration.without_pairs()).collect::<Vec<Declaration>>(),
         }
     }
 
@@ -389,7 +386,7 @@ impl<'a> Program<'a> {
                 let mut updated_declarations = self.declarations.clone();
                 updated_declarations.insert(idx, DeclarationKind::EmptyLine.to_declaration(None));
                 self.with_declarations(updated_declarations)
-            },
+            }
             Some(idx) => {
                 let mut updated_declarations = self.declarations.clone();
                 updated_declarations.swap(idx, idx + 1);
@@ -416,7 +413,7 @@ impl<'a> Program<'a> {
         new_program.is_tool = !self.is_tool;
         new_program
     }
-    
+
     pub fn toggle_tool_button(&self, function: Declaration<'a>) -> Program<'a> {
         match function.kind {
             DeclarationKind::Function(name, _, _, _) => {
@@ -438,19 +435,20 @@ impl<'a> Program<'a> {
                                 declarations.remove(idx);
                                 self.with_declarations(declarations)
                             }
+                            // 1154163900
                             None => {
                                 let var_name: String = format!("_{}", name);
-                                let button_variable: Declaration<'a> = Declaration {
-                                    pair: None,
-                                    kind: DeclarationKind::Var(
+                                let button_variable: Declaration<'a> = Declaration::new(
+                                    None,
+                                    DeclarationKind::Var(
                                         var_name,
                                         name,
-                                        Some(Annotation { pair: None, kind: AnnotationKind::ExportToolButton(name) })
-                                    )
-                                };
+                                        Some(Annotation { pair: None, kind: AnnotationKind::ExportToolButton(name) }),
+                                    ),
+                                );
                                 declarations.insert(idx, button_variable);
                                 self.with_declarations(declarations)
-                            },
+                            }
                         }
                     }
                 }
@@ -485,14 +483,14 @@ impl<'a> DeclarationKind<'a> {
         }
     }
 
-    pub fn to_declaration(&self, pair: Option<Pair<'a, Rule>> ) -> Declaration<'a> {
-        Declaration { pair, kind: self.clone() }
+    pub fn to_declaration(&self, pair: Option<Pair<'a, Rule>>) -> Declaration<'a> {
+        Declaration::new(pair, self.clone())
     }
 
     pub fn as_str(&self) -> String {
         self.to_declaration(None).to_string()
     }
-    
+
     fn without_pairs(&self) -> DeclarationKind<'_> {
         match self {
             DeclarationKind::Function(_, _, _, _) => self.clone(),
@@ -506,7 +504,6 @@ impl<'a> DeclarationKind<'a> {
         }
     }
 }
-
 
 
 impl Parameter<'_> {
@@ -530,7 +527,7 @@ impl Annotation<'_> {
                 "@export_tool_button(\"".to_owned() + some_string + "\")",
         }
     }
-    
+
     fn without_pairs(&self) -> Annotation<'_> {
         Annotation { pair: None, kind: self.kind.clone() }
     }
@@ -540,24 +537,24 @@ impl<'a> Declaration<'a> {
     pub fn toggle_annotation(&self, annotation: Annotation<'a>) -> Declaration<'a> {
         match self.kind.clone() {
             DeclarationKind::Var(identifier, value, Some(previous_annotation))
-                if previous_annotation.kind == annotation.kind => DeclarationKind::Var(
-                    identifier.to_string(), value, None).to_declaration(None),
+            if previous_annotation.kind == annotation.kind => DeclarationKind::Var(
+                identifier.to_string(), value, None).to_declaration(None),
             DeclarationKind::Var(identifier, value, _) =>
                 DeclarationKind::Var(identifier.to_string(), value, Some(annotation)).to_declaration(None),
             _ => self.clone()
         }
     }
-    
+
     fn without_pairs(&self) -> Declaration<'a> {
-        Declaration {
-            pair: None,
-            kind: {
+        Declaration::new(
+            None,
+            {
                 let this = &self.kind;
                 match this {
                     DeclarationKind::Function(fname, ftype, parameters, statements) => {
                         let new_statements = statements.into_iter().map(|s| s.without_pairs()).collect();
                         DeclarationKind::Function(fname, ftype.clone(), parameters.to_vec(), new_statements)
-                    },
+                    }
                     DeclarationKind::EmptyLine => this.clone(),
                     DeclarationKind::Var(name, value, maybe_annotation) =>
                         DeclarationKind::Var(name.to_string(), value, maybe_annotation.clone().map(|annotation| {
@@ -566,8 +563,8 @@ impl<'a> Declaration<'a> {
                         })),
                     DeclarationKind::Unknown(_) => this.clone(),
                 }
-            }
-        }
+            },
+        )
     }
 }
 
@@ -599,7 +596,7 @@ impl<'a> StatementKind<'a> {
             StatementKind::Expression(expression) =>
                 StatementKind::Expression(expression.without_pairs()),
             StatementKind::Return(maybe_expression) =>
-            StatementKind::Return(maybe_expression.clone().map(|expr|expr.without_pairs())),
+                StatementKind::Return(maybe_expression.clone().map(|expr| expr.without_pairs())),
             StatementKind::VarDeclaration(var_name, expression) =>
                 StatementKind::VarDeclaration(var_name, expression.without_pairs()),
             StatementKind::Pass | StatementKind::Unknown(_) => self.clone()
@@ -610,10 +607,10 @@ impl<'a> StatementKind<'a> {
 struct ExpressionReplacement<'a> {
     old: Expression<'a>,
     new: Expression<'a>,
-    range_of_new_expression: SelectionRange
+    range_of_new_expression: SelectionRange,
 }
 
-impl <'a> Expression<'a> {
+impl<'a> Expression<'a> {
     pub fn without_pairs(&self) -> Expression<'a> {
         Expression { pair: None, kind: self.kind.without_pairs() }
     }
@@ -626,18 +623,22 @@ impl <'a> Expression<'a> {
         &self,
         selection_to_remove: SelectionRange,
         expression_to_add: Expression<'a>) -> Option<ExpressionReplacement<'a>> {
-            if !self.contains_range(&selection_to_remove) {
-                return None
-            };
+        if !self.contains_range(&selection_to_remove) {
+            return None;
+        };
         match &self.kind {
             ExpressionKind::LiteralInt(_) | ExpressionKind::Unknown(_) |
-                ExpressionKind::LiteralSelf | ExpressionKind::VariableUsage(_) => {
-                    Some(ExpressionReplacement { old: self.clone(), new: expression_to_add.clone(), range_of_new_expression: 
-                        {
-                            let (start_line, start_col) = self.pair.clone().unwrap().line_col();
-                            (start_line, start_col) .. (start_line, start_col + expression_to_add.to_string().len())
-                        }})
-            },
+            ExpressionKind::LiteralSelf | ExpressionKind::VariableUsage(_) => {
+                Some(ExpressionReplacement {
+                    old: self.clone(),
+                    new: expression_to_add.clone(),
+                    range_of_new_expression:
+                    {
+                        let (start_line, start_col) = self.pair.clone().unwrap().line_col();
+                        (start_line, start_col)..(start_line, start_col + expression_to_add.to_string().len())
+                    },
+                })
+            }
             ExpressionKind::BinaryOperation(
                 expression1,
                 op,
@@ -658,7 +659,7 @@ impl <'a> Expression<'a> {
                     return None;
                 }
                 Some(ExpressionReplacement { old: old.clone(), new: Expression { pair: None, kind }, range_of_new_expression })
-            },
+            }
             ExpressionKind::MessageSend(receiver, method_name, arguments) => {
                 let old: Expression;
                 let kind: ExpressionKind;
@@ -668,22 +669,25 @@ impl <'a> Expression<'a> {
                 } else {
                     return None;
                 }
-                Some(ExpressionReplacement { old: old.clone(), new: Expression { pair: None, kind }, range_of_new_expression:
+                Some(ExpressionReplacement {
+                    old: old.clone(),
+                    new: Expression { pair: None, kind },
+                    range_of_new_expression:
                     {
                         let (start_line, start_col) = old.clone().pair.clone().unwrap().line_col();
-                        (start_line, start_col) .. (start_line, start_col + expression_to_add.to_string().len())
-                    }
+                        (start_line, start_col)..(start_line, start_col + expression_to_add.to_string().len())
+                    },
                 })
-            },
+            }
         }
     }
 }
 
-impl <'a> ExpressionKind<'a> {
+impl<'a> ExpressionKind<'a> {
     pub fn without_pairs(&self) -> ExpressionKind<'a> {
         match &self {
             ExpressionKind::BinaryOperation(lhs, op, rhs) =>
-            ExpressionKind::BinaryOperation(Box::new(lhs.without_pairs()), op, Box::new(rhs.without_pairs())),
+                ExpressionKind::BinaryOperation(Box::new(lhs.without_pairs()), op, Box::new(rhs.without_pairs())),
             ExpressionKind::MessageSend(receiver, message_name, arguments) =>
                 ExpressionKind::MessageSend(Box::new(receiver.without_pairs()), message_name, arguments.to_vec()),
             _ => self.clone()

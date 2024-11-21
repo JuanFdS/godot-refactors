@@ -1,5 +1,5 @@
-use std::fmt::{format, Display};
 use crate::godot_ast_types::*;
+use std::fmt::Display;
 
 impl Display for Program<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

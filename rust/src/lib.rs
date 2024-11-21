@@ -6,8 +6,8 @@ mod printing;
 
 use std::ops::Range;
 
-use godot_ast_types::*;
 use godot::prelude::*;
+use godot_ast_types::*;
 use parsing::GDScriptParser;
 use refactorings::LineCol;
 

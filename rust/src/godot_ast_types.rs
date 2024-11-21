@@ -1,6 +1,9 @@
 use pest::iterators::Pair;
+use std::ops::Range;
 
 use crate::parsing::Rule;
+use crate::refactorings::ExtendedPair;
+use crate::refactorings::{range_contains, LineCol};
 
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct Program<'a> {
@@ -11,8 +14,20 @@ pub struct Program<'a> {
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct Declaration<'a> {
-    pub pair: Option<Pair<'a, Rule>>,
-    pub kind: DeclarationKind<'a>
+    pub kind: DeclarationKind<'a>,
+    location: Option<Range<LineCol>>
+}
+
+impl <'a> Declaration<'a> {
+    pub fn new(pair: Option<Pair<'a, Rule>>, kind: DeclarationKind<'a>) -> Self {
+        Declaration {
+            kind,
+            location: pair.map(|p| p.line_col_range())
+        }
+    }
+    pub fn contains_range(&self, range: &Range<LineCol>) -> bool {
+        self.location.as_ref().is_some_and(|l| range_contains(l, range))
+    }
 }
 
 
