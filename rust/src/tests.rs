@@ -13,11 +13,11 @@ fn expr_message_send<'a>(receiver: Expression<'a>, message_name: &'a str, argume
 }
 
 fn statement_empty_return<'a>() -> Statement<'a> {
-    Statement { pair: None, kind: StatementKind::Return(None) }
+    Statement::new(None, StatementKind::Return(None))
 }
 
 fn statement_return<'a>(returned_expression: Expression<'a>) -> Statement<'a> {
-    Statement { pair: None, kind: StatementKind::Return(Some(returned_expression)) }
+    Statement::new(None, StatementKind::Return(Some(returned_expression)))
 }
 
 fn expr_self<'a>() -> Expression<'a> {

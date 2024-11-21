@@ -1,9 +1,8 @@
-use pest::iterators::Pair;
-use std::ops::Range;
-
 use crate::parsing::Rule;
 use crate::refactorings::ExtendedPair;
 use crate::refactorings::{range_contains, LineCol};
+use pest::iterators::Pair;
+use std::ops::Range;
 
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct Program<'a> {
@@ -69,8 +68,20 @@ pub enum AnnotationKind<'a> {
 
 #[derive(Debug, Eq, Clone)]
 pub struct Statement<'a> {
-    pub pair: Option<Pair<'a, Rule>>,
-    pub kind: StatementKind<'a>
+    pub kind: StatementKind<'a>,
+    location: Option<Range<LineCol>>,
+}
+
+impl <'a> Statement<'a> {
+    pub fn new(pair: Option<Pair<'a, Rule>>, kind: StatementKind<'a>) -> Self {
+        Statement {
+            kind,
+            location: pair.map(|p| p.line_col_range())
+        }
+    }
+    pub fn contains_range(&self, range: &Range<LineCol>) -> bool {
+        self.location.as_ref().is_some_and(|l| range_contains(l, range))
+    }
 }
 
 impl<'a> PartialEq for Statement<'a> {

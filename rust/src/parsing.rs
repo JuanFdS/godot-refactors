@@ -169,18 +169,18 @@ impl GDScriptParser {
             Rule::flow_statement => Self::to_statement(parse_result.into_inner().next().unwrap()),
             Rule::return_statement => {
                 let maybe_expression = parse_result.clone().into_inner().next().map(Self::to_expression);
-                Some(Statement { pair: Some(parse_result.clone()), kind: StatementKind::Return(maybe_expression) })
+                Some(Statement::new(Some(parse_result.clone()), StatementKind::Return(maybe_expression)))
             },
             Rule::unknown => Some(
-                Statement { pair: Some(parse_result.clone()), kind: StatementKind::Unknown(parse_result.as_span().as_str().to_owned()) }),
+                Statement::new(Some(parse_result.clone()), StatementKind::Unknown(parse_result.as_span().as_str().to_owned()))),
             Rule::pass => Some(
-                Statement { pair: Some(parse_result), kind: StatementKind::Pass }
+                Statement::new(Some(parse_result), StatementKind::Pass)
             ),
             Rule::expression => {
                 let sub_expression = Self::to_expression(parse_result.clone());
                 let kind = StatementKind::Expression(sub_expression);
 
-                Some(Statement { pair: Some(parse_result), kind })
+                Some(Statement::new(Some(parse_result), kind))
             },
             Rule::statement => Self::to_statement(parse_result.into_inner().next().unwrap()),
             _ => None,

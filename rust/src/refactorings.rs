@@ -114,7 +114,7 @@ impl<'a> Program<'a> {
                 _ => return function.clone()
             };
             let maybe_statement_idx = statements.iter().position(|statement| {
-                statement.pair.clone().unwrap().contains_range(selected_range.clone())
+                statement.contains_range(&selected_range)
             });
             if maybe_statement_idx.is_none() {
                 return function.clone();
@@ -176,21 +176,21 @@ impl<'a> Program<'a> {
                         StatementKind::VarDeclaration(var_name, expression) => {
                             match replace_variable_usage(expression, variable_name.to_string(), expr_to_inline.clone()) {
                                 Some((new_expr, _lines_to_select)) =>
-                                    new_statements.push(Statement { pair: None, kind: StatementKind::VarDeclaration(var_name, new_expr) }),
+                                    new_statements.push(Statement::new(None, StatementKind::VarDeclaration(var_name, new_expr))),
                                 None => new_statements.push(statement.clone()),
                             }
                         }
                         StatementKind::Expression(expression) => {
                             match replace_variable_usage(expression, variable_name.to_string(), expr_to_inline.clone()) {
                                 Some((new_expr, _lines_to_select)) =>
-                                    new_statements.push(Statement { pair: None, kind: StatementKind::Expression(new_expr) }),
+                                    new_statements.push(Statement::new(None, StatementKind::Expression(new_expr))),
                                 None => new_statements.push(statement.clone()),
                             }
                         }
                         StatementKind::Return(Some(expression)) => {
                             match replace_variable_usage(expression, variable_name.to_string(), expr_to_inline.clone()) {
                                 Some((new_expr, _lines_to_select)) =>
-                                    new_statements.push(Statement { pair: None, kind: StatementKind::Return(Some(new_expr)) }),
+                                    new_statements.push(Statement::new(None, StatementKind::Return(Some(new_expr)))),
                                 None => new_statements.push(statement.clone()),
                             }
                         }
@@ -220,7 +220,7 @@ impl<'a> Program<'a> {
             match declaration.clone().kind {
                 DeclarationKind::Function(function_name, function_type, params, ref statements) => {
                     let maybe_statement_idx = statements.iter().position(|statement|
-                        statement.pair.clone().unwrap().contains_range(selected_range.clone())
+                        statement.contains_range(&selected_range)
                     );
                     if maybe_statement_idx.is_none() {
                         return declaration.clone();
@@ -582,13 +582,13 @@ impl<'a> Statement<'a> {
     }
 
     pub fn without_pairs(&self) -> Statement<'a> {
-        Statement { pair: None, kind: self.kind.without_pairs() }
+        Statement::new(None, self.kind.without_pairs())
     }
 }
 
 impl<'a> StatementKind<'a> {
     pub fn to_statement(&self, pair: Option<Pair<'a, Rule>>) -> Statement<'a> {
-        Statement { pair: pair, kind: self.clone() }
+        Statement::new(pair, self.clone())
     }
 
     pub fn without_pairs(&self) -> StatementKind<'a> {
