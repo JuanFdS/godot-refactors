@@ -66,6 +66,7 @@ impl GDScriptParser {
                     .unwrap()
                     .as_span()
                     .as_str()
+                    .into()
             ),
             _ => panic!()
         }.to_annotation()

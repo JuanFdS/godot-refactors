@@ -426,7 +426,7 @@ impl<'a> Program<'a> {
                     Some(idx) => {
                         let already_defined_toggle_button_var_idx = declarations.clone().into_iter().position(|declaration|
                             match declaration.kind {
-                                DeclarationKind::Var(_, f_name, Some(Annotation { pair: None, kind: AnnotationKind::ExportToolButton(_) })) => f_name == name,
+                                DeclarationKind::Var(_, f_name, Some(Annotation { kind: AnnotationKind::ExportToolButton(_), .. })) => f_name == name,
                                 _ => false
                             }
                         );
@@ -435,7 +435,6 @@ impl<'a> Program<'a> {
                                 declarations.remove(idx);
                                 self.with_declarations(declarations)
                             }
-                            // 1154163900
                             None => {
                                 let var_name: String = format!("_{}", name);
                                 let button_variable: Declaration<'a> = Declaration::new(
@@ -443,7 +442,7 @@ impl<'a> Program<'a> {
                                     DeclarationKind::Var(
                                         var_name,
                                         name,
-                                        Some(Annotation { pair: None, kind: AnnotationKind::ExportToolButton(name) }),
+                                        Some(Annotation::new(None, AnnotationKind::ExportToolButton(name.into()))),
                                     ),
                                 );
                                 declarations.insert(idx, button_variable);
@@ -498,7 +497,7 @@ impl<'a> DeclarationKind<'a> {
             DeclarationKind::Var(name, value, maybe_annotation) =>
                 DeclarationKind::Var(name.to_string(), value, maybe_annotation.clone().map(|annotation| {
                     let this = &annotation;
-                    Annotation { pair: None, kind: this.kind.clone() }
+                    Annotation::new(None, this.kind.clone())
                 })),
             DeclarationKind::Unknown(_) => self.clone(),
         }
@@ -512,29 +511,29 @@ impl Parameter {
     }
 }
 
-impl<'a> AnnotationKind<'a> {
-    pub fn to_annotation(&self) -> Annotation<'a> {
-        Annotation { pair: None, kind: self.clone() }
+impl<'a> AnnotationKind {
+    pub fn to_annotation(&self) -> Annotation {
+        Annotation::new(None, self.clone())
     }
 }
 
-impl Annotation<'_> {
+impl Annotation {
     pub fn as_str(&self) -> String {
-        match self.kind {
+        match &self.kind {
             AnnotationKind::Export => "@export".to_string(),
             AnnotationKind::OnReady => "@onready".to_string(),
             AnnotationKind::ExportToolButton(some_string) =>
-                "@export_tool_button(\"".to_owned() + some_string + "\")",
+                format!("@export_tool_button(\"{some_string}\")"),
         }
     }
 
-    fn without_pairs(&self) -> Annotation<'_> {
-        Annotation { pair: None, kind: self.kind.clone() }
+    fn without_pairs(&self) -> Annotation {
+        Annotation::new(None, self.kind.clone())
     }
 }
 
 impl<'a> Declaration<'a> {
-    pub fn toggle_annotation(&self, annotation: Annotation<'a>) -> Declaration<'a> {
+    pub fn toggle_annotation(&self, annotation: Annotation) -> Declaration<'a> {
         match self.kind.clone() {
             DeclarationKind::Var(identifier, value, Some(previous_annotation))
             if previous_annotation.kind == annotation.kind => DeclarationKind::Var(
@@ -559,7 +558,7 @@ impl<'a> Declaration<'a> {
                     DeclarationKind::Var(name, value, maybe_annotation) =>
                         DeclarationKind::Var(name.to_string(), value, maybe_annotation.clone().map(|annotation| {
                             let this = &annotation;
-                            Annotation { pair: None, kind: this.kind.clone() }
+                            Annotation::new(None, this.kind.clone())
                         })),
                     DeclarationKind::Unknown(_) => this.clone(),
                 }

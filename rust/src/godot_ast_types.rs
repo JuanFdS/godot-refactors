@@ -36,7 +36,7 @@ pub enum DeclarationKind<'a> {
     // Function(nombre, type, parametros, statements)
     Function(&'a str, Option<String>, Vec<Parameter>, Vec<Statement>),
     // Var(identifier, value, anotation)
-    Var(String, &'a str, Option<Annotation<'a>>),
+    Var(String, &'a str, Option<Annotation>),
     Unknown(&'a str)
 }
 
@@ -61,16 +61,25 @@ impl Parameter {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct Annotation<'a> {
-    pub pair: Option<Pair<'a, Rule>>,
-    pub kind: AnnotationKind<'a>
+pub struct Annotation {
+    pub kind: AnnotationKind,
+    location: Option<Range<LineCol>>,
+}
+
+impl Annotation {
+    pub fn new(pair: Option<Pair<Rule>>, kind: AnnotationKind) -> Self {
+        Annotation {
+            kind,
+            location: pair.map(|p| p.line_col_range())
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub enum AnnotationKind<'a> {
+pub enum AnnotationKind {
     Export,
     OnReady,
-    ExportToolButton(&'a str)
+    ExportToolButton(String)
 }
 
 #[derive(Debug, Eq, Clone)]

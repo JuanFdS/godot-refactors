@@ -78,7 +78,7 @@ fn dec_empty_line<'a>() -> Declaration<'a> {
 fn dec_var<'a>(
     identifier: String,
     value: &'a str,
-    annotation: Option<Annotation<'a>>,
+    annotation: Option<Annotation>,
 ) -> Declaration<'a> {
     DeclarationKind::Var(identifier, value, annotation).to_declaration(None)
 }
@@ -91,16 +91,16 @@ fn parameter(name: &str) -> Parameter {
     Parameter::new(None, name)
 }
 
-fn annotation_export() -> Annotation<'static> {
+fn annotation_export() -> Annotation {
     AnnotationKind::Export.to_annotation()
 }
 
-fn annotation_onready() -> Annotation<'static> {
+fn annotation_onready() -> Annotation {
     AnnotationKind::OnReady.to_annotation()
 }
 
-fn annotation_export_tool_button<'a>(text: &'a str) -> Annotation<'a> {
-    AnnotationKind::ExportToolButton(text).to_annotation()
+fn annotation_export_tool_button<'a>(text: &'a str) -> Annotation {
+    AnnotationKind::ExportToolButton(text.into()).to_annotation()
 }
 
 #[cfg(test)]
@@ -913,7 +913,7 @@ func foo():
                     dec_var(
                         "_foo".to_string(),
                         "foo",
-                        Some(AnnotationKind::ExportToolButton("foo").to_annotation())
+                        Some(AnnotationKind::ExportToolButton("foo".into()).to_annotation())
                     ),
                     dec_function("foo", None, vec![], vec![statement_pass()])
                 ]
@@ -944,7 +944,7 @@ func foo():
                 dec_var(
                     "_foo".to_string(),
                     "foo",
-                    Some(AnnotationKind::ExportToolButton("foo").to_annotation()),
+                    Some(AnnotationKind::ExportToolButton("foo".into()).to_annotation()),
                 ),
                 dec_function("foo", None, vec![], vec![statement_pass()]),
             ],
