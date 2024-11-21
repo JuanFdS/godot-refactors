@@ -81,16 +81,18 @@ func _input(event):
 		var selected_line_text: String = code_edit.get_line(selected_line)
 
 		if event.pressed and event.ctrl_pressed and event.keycode == KEY_DOWN:
-			code_edit.text = mi_parser.bajar(selected_text, all_text)
-			var pos = code_edit.search(selected_text.split("\n")[0], 0, 0, 0)
-			var amount_of_lines = selected_text.split("\n").size()
+			var focused_function = mi_parser.function_at_line(selected_line, all_text)
+			code_edit.text = mi_parser.bajar(selected_line, all_text)
+			var pos = code_edit.search(focused_function.split("\n")[0], TextEdit.SEARCH_MATCH_CASE, 0, 0)
+			var amount_of_lines = focused_function.split("\n").size()
 			var finishing_caret_line = pos.y + amount_of_lines - 1
 			var finishing_caret_column = code_edit.get_line_width(finishing_caret_line)
 			code_edit.select(pos.y, pos.x, finishing_caret_line, finishing_caret_column)
 		elif event.pressed and event.ctrl_pressed and event.keycode == KEY_UP:
-			code_edit.text = mi_parser.subir(selected_text, all_text)
-			var pos = code_edit.search(selected_text.split("\n")[0], 0, 0, 0)
-			var amount_of_lines = selected_text.split("\n").size()
+			var focused_function = mi_parser.function_at_line(selected_line, all_text)
+			code_edit.text = mi_parser.subir(selected_line, all_text)
+			var pos = code_edit.search(focused_function.split("\n")[0], TextEdit.SEARCH_MATCH_CASE, 0, 0)
+			var amount_of_lines = focused_function.split("\n").size()
 			var finishing_caret_line = pos.y + amount_of_lines - 1
 			var finishing_caret_column = code_edit.get_line_width(finishing_caret_line)
 			code_edit.select(pos.y, pos.x, finishing_caret_line, finishing_caret_column)

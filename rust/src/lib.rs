@@ -91,29 +91,31 @@ impl MiParser {
         GString::from(refactored_declaration.to_string())
     }
     #[func]
-    fn bajar(&self, texto_seleccionado: String, todo_el_archivo: String) -> GString {
+    fn bajar(&self, linea: i32, todo_el_archivo: String) -> GString {
         let program = GDScriptParser::parse_to_program(&todo_el_archivo);
-        let function = GDScriptParser::parse_to_declaration(&texto_seleccionado);
+        let function_to_refactor = program.find_function_declaration_at_line(Self::godot_to_pest_line(linea));
 
-        let refactored_program = program.move_declaration_down(function);
-
+        let refactored_program = function_to_refactor
+            .map(|f| program.move_declaration_down(f.clone()))
+            .unwrap_or(program);
 
         GString::from(refactored_program.to_string())
     }
     #[func]
-    fn subir(&self, texto_seleccionado: String, todo_el_archivo: String) -> GString {
+    fn subir(&self, linea: i32, todo_el_archivo: String) -> GString {
         let program = GDScriptParser::parse_to_program(&todo_el_archivo);
-        let function = GDScriptParser::parse_to_declaration(&texto_seleccionado);
+        let function_to_refactor = program.find_function_declaration_at_line(Self::godot_to_pest_line(linea));
 
-        let refactored_program = program.move_declaration_up(function);
+        let refactored_program = function_to_refactor
+            .map(|f| program.move_declaration_up(f.clone()))
+            .unwrap_or(program);
 
         GString::from(refactored_program.to_string())
     }
     #[func]
     fn toggle_tool_button(&self, linea: i32, todo_el_archivo: String) -> GString {
         let program: Program = GDScriptParser::parse_to_program(&todo_el_archivo);
-        let line_number = (linea + 1).try_into().unwrap();
-        let function_to_refactor = program.find_function_declaration_at_line(line_number);
+        let function_to_refactor = program.find_function_declaration_at_line(Self::godot_to_pest_line(linea));
 
         let refactored_program = function_to_refactor
             .map(|f| program.toggle_tool_button(f))
@@ -121,14 +123,18 @@ impl MiParser {
 
         GString::from(refactored_program.to_string())
     }
+
+    fn godot_to_pest_line(linea: i32) -> usize {
+        (linea + 1).try_into().unwrap()
+    }
+
     #[func]
     fn function_at_line(&self, line: i32, archivo: String) -> GString {
-        let donde_empieza = archivo.lines().skip(line as usize).collect::<Vec<&str>>().join("\n");
+        let program: Program = GDScriptParser::parse_to_program(&archivo);
 
-        match GDScriptParser::parse_to_declaration(&donde_empieza).kind {
-            f @ DeclarationKind::Function { .. } => GString::from(f.as_str()),
-            _ => GString::from("")
-        }
+        program.find_function_declaration_at_line(Self::godot_to_pest_line(line))
+            .map(|f| GString::from(f.to_string()))
+            .unwrap_or(GString::from(""))
     }
 }
 
