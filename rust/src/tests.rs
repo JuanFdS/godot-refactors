@@ -680,7 +680,7 @@ func foo():
     }
 
     #[test]
-    fn moving_function_around_when_there_are_multiple_empty_lines() {
+    fn moving_function_around_when_there_are_multiple_empty_lines_once() {
         let program =
             GDScriptParser::parse_to_program("
 func foo():
@@ -689,9 +689,9 @@ func foo():
 func bar():
 \tpass");
 
-        let foo_function = || GDScriptParser::parse_to_declaration("func foo():\n\tpass");
+        let foo_function = program.find_function_declaration_at_line(2).unwrap();
 
-        let program_with_foo_one_time_down = program.move_declaration_down(foo_function());
+        let program_with_foo_one_time_down = program.move_declaration_down(foo_function.clone());
 
         assert_eq!(
             program_with_foo_one_time_down.to_string().as_str(),
@@ -703,9 +703,22 @@ func bar():
 \tpass
 "
         );
+    }
+
+    #[test]
+    fn moving_function_around_when_there_are_multiple_empty_lines_twice() {
+        let program =
+            GDScriptParser::parse_to_program("
+
+func foo():
+\tpass
+func bar():
+\tpass");
+
+        let foo_function = program.find_function_declaration_at_line(3).unwrap();
 
         let program_with_foo_two_times_down =
-            program_with_foo_one_time_down.move_declaration_down(foo_function());
+            program.move_declaration_down(foo_function.clone());
         assert_eq!(
             program_with_foo_two_times_down.to_string().as_str(),
             "

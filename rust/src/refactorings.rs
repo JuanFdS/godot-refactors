@@ -372,9 +372,7 @@ impl<'a> Program {
     }
 
     pub fn move_declaration_down(&self, declaration: Declaration) -> Program {
-        let maybe_idx = self.declarations.iter().position(
-            |x| x.kind == declaration.kind
-        );
+        let maybe_idx = self.declarations.iter().position(|x| *x == declaration);
         match maybe_idx {
             Some(idx) if idx + 1 == self.declarations.len() => {
                 let mut updated_declarations = self.declarations.clone();

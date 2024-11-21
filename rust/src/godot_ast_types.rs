@@ -23,16 +23,10 @@ impl <'a, K> AstNode<K> {
     }
 }
 
-#[derive(Debug, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct AstNode<K> {
     pub kind: K,
     location: Option<Range<LineCol>>
-}
-
-impl<'a, K: PartialEq> PartialEq for AstNode<K> {
-    fn eq(&self, other: &Self) -> bool {
-        self.kind == other.kind
-    }
 }
 
 pub type Declaration = AstNode<DeclarationKind>;
