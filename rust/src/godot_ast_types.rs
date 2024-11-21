@@ -104,25 +104,23 @@ type RulePair<'a> = Option<Pair<'a, Rule>>;
 #[derive(Debug, Eq, PartialEq, Clone)]
 
 pub struct Expression<'a> {
-    pair: RulePair<'a>,
-    pub kind: ExpressionKind<'a>
+    pub kind: ExpressionKind<'a>,
+    location: Option<Range<LineCol>>
 }
 
 impl <'a> Expression<'a> {
     pub fn new(pair: Option<Pair<'a, Rule>>, kind: ExpressionKind<'a>) -> Self {
         Expression {
             kind,
-            pair,
-            // location: pair.map(|p| p.line_col_range())
+            location: pair.map(|p| p.line_col_range())
         }
     }
     pub fn contains_range(&self, range: &Range<LineCol>) -> bool {
-        self.pair.as_ref().is_some_and(|pair| pair.contains_range(range.clone()))
-        // self.location.as_ref().is_some_and(|l| range_contains(l, range))
+        self.location.as_ref().is_some_and(|l| range_contains(l, range))
     }
 
     pub fn line_col_range(&self) -> Range<LineCol> {
-        self.pair.as_ref().unwrap().line_col_range()
+        self.location.as_ref().unwrap().clone()
     }
 
     pub fn line_col(&self) -> LineCol {
