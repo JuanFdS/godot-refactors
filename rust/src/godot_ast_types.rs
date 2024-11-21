@@ -130,9 +130,9 @@ impl Expression {
         self.location.as_ref().unwrap().clone()
     }
 
-    // pub fn line_col(&self) -> LineCol {
-    //     self.line_col_range().start
-    // }
+    pub fn line_col(&self) -> LineCol {
+        self.line_col_range().start
+    }
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
