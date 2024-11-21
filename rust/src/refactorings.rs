@@ -58,6 +58,13 @@ impl<'a> ExtendedPair for Pair<'a, Rule> {
 type SelectionRange = Range<LineCol>;
 
 impl<'a> Program {
+    pub fn find_function_declaration_at_line(&self, line: usize) -> Option<&Declaration> {
+        let location: LineCol = (line, 1);
+        let search_range = location..location;
+        self.find_function_declaration_by_selection_range(&search_range)
+            .map(|(_, f)| f)
+    }
+
     fn find_function_declaration_by_selection_range(&self, range: &SelectionRange) -> Option<(usize, &Declaration)> {
         self.declarations.iter().enumerate().find(|(_idx, declaration)|
             {
@@ -401,7 +408,7 @@ impl<'a> Program {
         new_program
     }
 
-    pub fn toggle_tool_button(&self, function: Declaration) -> Program {
+    pub fn toggle_tool_button(&self, function: &Declaration) -> Program {
         match &function.kind {
             DeclarationKind::Function { name, .. } => {
                 let mut declarations: Vec<Declaration> = self.declarations.clone();

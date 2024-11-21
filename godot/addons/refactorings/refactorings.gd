@@ -172,7 +172,7 @@ func toggle_tool_button(selected_line: int):
 	var code_edit = _code_edit()
 	var all_text = code_edit.text
 	var selected_function = mi_parser.function_at_line(selected_line, all_text)
-	var new_text = mi_parser.toggle_tool_button(selected_function, all_text)
+	var new_text = mi_parser.toggle_tool_button(selected_line, all_text)
 	if new_text != all_text:
 		var diff_lines = new_text.split("\n").size() - all_text.split("\n").size()
 		var previous_caret_line = code_edit.get_caret_line()

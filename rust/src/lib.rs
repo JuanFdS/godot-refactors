@@ -110,10 +110,14 @@ impl MiParser {
         GString::from(refactored_program.to_string())
     }
     #[func]
-    fn toggle_tool_button(&self, texto_seleccionado: String, todo_el_archivo: String) -> GString {
-        let program = GDScriptParser::parse_to_program(&todo_el_archivo);
-        let function = GDScriptParser::parse_to_declaration(&texto_seleccionado);
-        let refactored_program = program.toggle_tool_button(function);
+    fn toggle_tool_button(&self, linea: i32, todo_el_archivo: String) -> GString {
+        let program: Program = GDScriptParser::parse_to_program(&todo_el_archivo);
+        let line_number = (linea + 1).try_into().unwrap();
+        let function_to_refactor = program.find_function_declaration_at_line(line_number);
+
+        let refactored_program = function_to_refactor
+            .map(|f| program.toggle_tool_button(f))
+            .unwrap_or(program);
 
         GString::from(refactored_program.to_string())
     }

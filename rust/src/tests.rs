@@ -891,14 +891,10 @@ func foo():
 
     #[test]
     fn toggle_tool_button_on_function() {
-        let program = Program {
-            is_tool: true,
-            super_class: Some("Node".to_owned()),
-            declarations: vec![dec_function("foo", None, vec![], vec![statement_pass()])],
-        };
+        let program = GDScriptParser::parse_to_program("@tool\nextends Node\nfunc foo():\n\tpass");
 
         let refactored_program =
-            program.toggle_tool_button(dec_function("foo", None, vec![], vec![statement_pass()]));
+            program.toggle_tool_button(program.find_function_declaration_at_line(3).unwrap());
 
         assert_eq!(
             refactored_program,
@@ -920,10 +916,10 @@ func foo():
     #[test]
     fn toggle_tool_button_on_function_from_string_to_string() {
         let input = "@tool\nextends Node\n\nfunc foo():\n\tpass\n";
-
         let program = GDScriptParser::parse_to_program(input);
-        let foo = GDScriptParser::parse_to_declaration("func foo():\n\tpass");
-        let new_program = program.toggle_tool_button(foo);
+        let function = program.find_function_declaration_at_line(4).unwrap();
+
+        let new_program = program.toggle_tool_button(function);
 
         assert_program_prints_to(
             new_program,
@@ -933,21 +929,10 @@ func foo():
 
     #[test]
     fn toggle_tool_button_on_function_that_already_had_a_button_removes_it() {
-        let program = Program {
-            is_tool: true,
-            super_class: Some("Node".to_owned()),
-            declarations: vec![
-                dec_var(
-                    "_foo".to_string(),
-                    "foo",
-                    Some(AnnotationKind::ExportToolButton("foo".into()).to_annotation()),
-                ),
-                dec_function("foo", None, vec![], vec![statement_pass()]),
-            ],
-        };
+        let program = GDScriptParser::parse_to_program("@tool\nextends Node\n@export_tool_button(\"foo\") var _foo = foo\nfunc foo():\n\tpass");
 
         let refactored_program =
-            program.toggle_tool_button(dec_function("foo", None, vec![], vec![statement_pass()]));
+            program.toggle_tool_button(program.find_function_declaration_at_line(4).unwrap());
 
         assert_eq!(
             refactored_program,
@@ -962,11 +947,10 @@ func foo():
     #[test]
     fn toggle_tool_button_on_function_that_already_had_a_button_removes_it_even_with_underscores() {
         let input = "@export_tool_button(\"f_oo\") var _f_oo = f_oo\nfunc f_oo():\n\tpass\n";
-
         let program = GDScriptParser::parse_to_program(input);
+        let function = program.find_function_declaration_at_line(2).unwrap();
 
-        let foo_function = GDScriptParser::parse_to_declaration("func f_oo():\n\tpass\n");
-        let new_program = program.toggle_tool_button(foo_function);
+        let new_program = program.toggle_tool_button(function);
 
         assert_program_prints_to(new_program, "func f_oo():\n\tpass\n")
     }
