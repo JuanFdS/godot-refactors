@@ -1,6 +1,6 @@
 use crate::godot_ast_types::*;
 
-fn create_program(declarations: Vec<Declaration>) -> Program<'_> {
+fn create_program(declarations: Vec<Declaration>) -> Program {
     Program {
         is_tool: false,
         super_class: None,
@@ -61,30 +61,30 @@ fn statement_var_declaration<'a>(name: &'a str, expression: Expression) -> State
 }
 
 
-fn dec_function<'a>(
-    function_name: &'a str,
+fn dec_function(
+    function_name: &str,
     function_type: Option<String>,
     parameters: Vec<Parameter>,
     statements: Vec<Statement>,
-) -> Declaration<'a> {
-    DeclarationKind::Function(function_name, function_type, parameters, statements)
+) -> Declaration {
+    DeclarationKind::Function(function_name.into(), function_type, parameters, statements)
         .to_declaration(None)
 }
 
-fn dec_empty_line<'a>() -> Declaration<'a> {
+fn dec_empty_line<'a>() -> Declaration {
     DeclarationKind::EmptyLine.to_declaration(None)
 }
 
-fn dec_var<'a>(
+fn dec_var(
     identifier: String,
-    value: &'a str,
+    value: &str,
     annotation: Option<Annotation>,
-) -> Declaration<'a> {
-    DeclarationKind::Var(identifier, value, annotation).to_declaration(None)
+) -> Declaration {
+    DeclarationKind::Var(identifier, value.into(), annotation).to_declaration(None)
 }
 
-fn dec_unknown<'a>(content: &'a str) -> Declaration<'a> {
-    DeclarationKind::Unknown(content).to_declaration(None)
+fn dec_unknown(content: &str) -> Declaration {
+    DeclarationKind::Unknown(content.into()).to_declaration(None)
 }
 
 fn parameter(name: &str) -> Parameter {
@@ -132,7 +132,7 @@ mod tests {
 
     #[track_caller]
     fn assert_parse_roundtrip(input: &str) {
-        let parsed_program: Program<'_> = GDScriptParser::parse_to_program(input);
+        let parsed_program: Program = GDScriptParser::parse_to_program(input);
         let parsed_program_as_string = parsed_program.to_string();
 
         assert_eq!(input, parsed_program_as_string.as_str());

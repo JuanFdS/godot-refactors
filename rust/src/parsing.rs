@@ -35,7 +35,7 @@ impl GDScriptParser {
             .map(|mut pairs| rule_mapper(pairs.next().unwrap()))
     }
 
-    pub fn try_parse_to_program<'a>(input: &'a str) -> Result<Program<'_>, pest::error::Error<Rule>> {
+    pub fn try_parse_to_program<'a>(input: &'a str) -> Result<Program, pest::error::Error<Rule>> {
         Self::try_parse_to_ast(input, Rule::program, Self::to_program)
     }
 
@@ -104,7 +104,7 @@ impl GDScriptParser {
         }
     }
 
-    fn to_declaration<'a>(parse_result: Pair<'a, Rule>) -> Declaration<'a> {
+    fn to_declaration<'a>(parse_result: Pair<'a, Rule>) -> Declaration {
         match parse_result.as_rule() {
             Rule::function => {
                 let mut inner_rules = parse_result.clone().into_inner();
@@ -131,7 +131,7 @@ impl GDScriptParser {
                     .into_inner()
                     .filter_map(Self::to_statement)
                     .collect();
-                DeclarationKind::Function(function_name, return_type, parameters, function_body).to_declaration(Some(parse_result))
+                DeclarationKind::Function(function_name.into(), return_type, parameters, function_body).to_declaration(Some(parse_result))
             },
             Rule::empty_line => DeclarationKind::EmptyLine.to_declaration(Some(parse_result)),
             Rule::var_declaration => {
@@ -142,13 +142,13 @@ impl GDScriptParser {
                     |p| p.as_rule() == Rule::identifier).unwrap();
                 let expression = inner_rules.find(|p| p.as_rule() == Rule::expression).unwrap();
                 DeclarationKind::Var(
-                    identifier.as_span().as_str().to_string(),
-                    expression.as_span().as_str(),
+                    identifier.as_span().as_str().into(),
+                    expression.as_span().as_str().into(),
                     annotation.map(|pair| Self::to_annotation(pair))
                 ).to_declaration(Some(parse_result))
             }
             Rule::unknown => {
-                DeclarationKind::Unknown(parse_result.as_span().as_str()).to_declaration(Some(parse_result))
+                DeclarationKind::Unknown(parse_result.as_span().as_str().into()).to_declaration(Some(parse_result))
             },
             Rule::declaration => Self::to_declaration(parse_result.into_inner().next().unwrap()),
             _ => panic!(),

@@ -68,7 +68,7 @@ impl<'a> ExtendedPair for Pair<'a, Rule> {
 
 type SelectionRange = Range<LineCol>;
 
-impl<'a> Program<'a> {
+impl<'a> Program {
     fn find_function_declaration_by_selection_range(&self, range: &SelectionRange) -> Option<(usize, &Declaration)> {
         self.declarations.iter().enumerate().find(|(_idx, declaration)|
             {
@@ -82,7 +82,7 @@ impl<'a> Program<'a> {
         )
     }
 
-    fn transform_declaration(&self, index: usize, f: impl Fn(&Declaration<'a>) -> Declaration<'a>) -> Program {
+    fn transform_declaration(&self, index: usize, f: impl Fn(&Declaration) -> Declaration) -> Program {
         let new_declarations = self.declarations.replace(index, f);
         self.with_declarations(new_declarations)
     }
@@ -197,7 +197,7 @@ impl<'a> Program<'a> {
                     }
                 }
             }
-            Declaration::new(None, DeclarationKind::Function(f_name, f_type.clone(), f_params.to_vec(), new_statements))
+            Declaration::new(None, DeclarationKind::Function(f_name.into(), f_type.clone(), f_params.to_vec(), new_statements))
         });
         (new_program, vec![])
     }
@@ -216,7 +216,7 @@ impl<'a> Program<'a> {
                 None => return (self.clone(), vec![])
             };
         let this = &self;
-        let f = move |declaration: &Declaration<'a>| -> Declaration<'_> {
+        let f = move |declaration: &Declaration| -> Declaration {
             match declaration.clone().kind {
                 DeclarationKind::Function(function_name, function_type, params, ref statements) => {
                     let maybe_statement_idx = statements.iter().position(|statement|
@@ -349,13 +349,13 @@ impl<'a> Program<'a> {
         }
     }
 
-    pub fn all_errors(&self) -> Vec<&Declaration<'a>> {
+    pub fn all_errors(&self) -> Vec<&Declaration> {
         self.declarations.iter().filter(|declaration|
             match declaration.kind {
                 DeclarationKind::Unknown(_) => true,
                 _ => false
             }
-        ).collect::<Vec<&Declaration<'a>>>()
+        ).collect::<Vec<&Declaration>>()
     }
 
     pub fn first_error(&self) -> Option<Declaration> {
@@ -371,7 +371,7 @@ impl<'a> Program<'a> {
         self.first_error().is_none()
     }
 
-    fn with_declarations(&self, new_declarations: Vec<Declaration<'a>>) -> Program<'a> {
+    fn with_declarations(&self, new_declarations: Vec<Declaration>) -> Program {
         let mut new_program = self.clone();
         new_program.declarations = new_declarations;
         new_program
@@ -408,16 +408,16 @@ impl<'a> Program<'a> {
         }
     }
 
-    pub fn toggle_tool(&self) -> Program<'a> {
+    pub fn toggle_tool(&self) -> Program {
         let mut new_program = self.clone();
         new_program.is_tool = !self.is_tool;
         new_program
     }
 
-    pub fn toggle_tool_button(&self, function: Declaration<'a>) -> Program<'a> {
-        match function.kind {
+    pub fn toggle_tool_button(&self, function: Declaration) -> Program {
+        match &function.kind {
             DeclarationKind::Function(name, _, _, _) => {
-                let mut declarations: Vec<Declaration<'a>> = self.declarations.clone();
+                let mut declarations: Vec<Declaration> = self.declarations.clone();
                 let maybe_idx: Option<usize> = declarations.iter().position(
                     |declaration| declaration.kind == function.kind
                 );
@@ -426,7 +426,7 @@ impl<'a> Program<'a> {
                     Some(idx) => {
                         let already_defined_toggle_button_var_idx = declarations.clone().into_iter().position(|declaration|
                             match declaration.kind {
-                                DeclarationKind::Var(_, f_name, Some(Annotation { kind: AnnotationKind::ExportToolButton(_), .. })) => f_name == name,
+                                DeclarationKind::Var(_, f_name, Some(Annotation { kind: AnnotationKind::ExportToolButton(_), .. })) => f_name == *name,
                                 _ => false
                             }
                         );
@@ -437,11 +437,11 @@ impl<'a> Program<'a> {
                             }
                             None => {
                                 let var_name: String = format!("_{}", name);
-                                let button_variable: Declaration<'a> = Declaration::new(
+                                let button_variable: Declaration = Declaration::new(
                                     None,
                                     DeclarationKind::Var(
                                         var_name,
-                                        name,
+                                        name.into(),
                                         Some(Annotation::new(None, AnnotationKind::ExportToolButton(name.into()))),
                                     ),
                                 );
@@ -457,32 +457,32 @@ impl<'a> Program<'a> {
     }
 }
 
-impl<'a> Function<'a> {
-    fn transform_statement(&self, index: usize, f: impl Fn(&Statement) -> Statement) -> Function<'a> {
+impl<'a> Function {
+    fn transform_statement(&self, index: usize, f: impl Fn(&Statement) -> Statement) -> Function {
         let new_statements = self.statements.replace(index, f);
         self.with_statements(new_statements)
     }
 
-    fn with_statements(&self, new_statements: Vec<Statement>) -> Function<'a> {
-        Function { name: self.name, tipe: self.tipe.clone(), parameters: self.parameters.clone(), statements: new_statements }
+    fn with_statements(&self, new_statements: Vec<Statement>) -> Function {
+        Function { name: self.name.clone(), tipe: self.tipe.clone(), parameters: self.parameters.clone(), statements: new_statements }
     }
 
-    fn to_declaration_kind(&self) -> DeclarationKind<'a> {
-        DeclarationKind::Function(self.name, self.tipe.clone(), self.parameters.clone(), self.statements.clone())
+    fn to_declaration_kind(&self) -> DeclarationKind {
+        DeclarationKind::Function(self.name.clone(), self.tipe.clone(), self.parameters.clone(), self.statements.clone())
     }
 }
 
 
-impl<'a> DeclarationKind<'a> {
+impl<'a> DeclarationKind {
     fn to_function(&self) -> Option<Function> {
         match self {
             DeclarationKind::Function(name, tipe, parameters, statements) =>
-                Some(Function { name, tipe: tipe.clone(), parameters: parameters.to_vec(), statements: statements.to_vec() }),
+                Some(Function { name: name.into(), tipe: tipe.clone(), parameters: parameters.to_vec(), statements: statements.to_vec() }),
             _ => None
         }
     }
 
-    pub fn to_declaration(&self, pair: Option<Pair<'a, Rule>>) -> Declaration<'a> {
+    pub fn to_declaration(&self, pair: Option<Pair<'a, Rule>>) -> Declaration {
         Declaration::new(pair, self.clone())
     }
 
@@ -490,12 +490,12 @@ impl<'a> DeclarationKind<'a> {
         self.to_declaration(None).to_string()
     }
 
-    fn without_pairs(&self) -> DeclarationKind<'_> {
+    fn without_pairs(&self) -> DeclarationKind {
         match self {
             DeclarationKind::Function(_, _, _, _) => self.clone(),
             DeclarationKind::EmptyLine => self.clone(),
             DeclarationKind::Var(name, value, maybe_annotation) =>
-                DeclarationKind::Var(name.to_string(), value, maybe_annotation.clone().map(|annotation| {
+                DeclarationKind::Var(name.to_string(), value.into(), maybe_annotation.clone().map(|annotation| {
                     let this = &annotation;
                     Annotation::new(None, this.kind.clone())
                 })),
@@ -532,8 +532,8 @@ impl Annotation {
     }
 }
 
-impl<'a> Declaration<'a> {
-    pub fn toggle_annotation(&self, annotation: Annotation) -> Declaration<'a> {
+impl<'a> Declaration {
+    pub fn toggle_annotation(&self, annotation: Annotation) -> Declaration {
         match self.kind.clone() {
             DeclarationKind::Var(identifier, value, Some(previous_annotation))
             if previous_annotation.kind == annotation.kind => DeclarationKind::Var(
@@ -544,7 +544,7 @@ impl<'a> Declaration<'a> {
         }
     }
 
-    fn without_pairs(&self) -> Declaration<'a> {
+    fn without_pairs(&self) -> Declaration {
         Declaration::new(
             None,
             {
@@ -552,11 +552,11 @@ impl<'a> Declaration<'a> {
                 match this {
                     DeclarationKind::Function(fname, ftype, parameters, statements) => {
                         let new_statements = statements.into_iter().map(|s| s.without_pairs()).collect();
-                        DeclarationKind::Function(fname, ftype.clone(), parameters.to_vec(), new_statements)
+                        DeclarationKind::Function(fname.into(), ftype.clone(), parameters.to_vec(), new_statements)
                     }
                     DeclarationKind::EmptyLine => this.clone(),
                     DeclarationKind::Var(name, value, maybe_annotation) =>
-                        DeclarationKind::Var(name.to_string(), value, maybe_annotation.clone().map(|annotation| {
+                        DeclarationKind::Var(name.to_string(), value.into(), maybe_annotation.clone().map(|annotation| {
                             let this = &annotation;
                             Annotation::new(None, this.kind.clone())
                         })),

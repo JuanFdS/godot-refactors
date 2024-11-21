@@ -1,7 +1,7 @@
 use crate::godot_ast_types::*;
 use std::fmt::Display;
 
-impl Display for Program<'_> {
+impl Display for Program {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut code_text = "".to_string();
         if self.is_tool {
@@ -22,7 +22,7 @@ impl Display for Program<'_> {
     }
 }
 
-impl Display for Declaration<'_> {
+impl Display for Declaration {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let text = match &self.kind {
             DeclarationKind::Function(name, return_type, parameters, statements) => {

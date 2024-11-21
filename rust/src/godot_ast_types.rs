@@ -5,20 +5,20 @@ use pest::iterators::Pair;
 use std::ops::Range;
 
 #[derive(PartialEq, Eq, Debug, Clone)]
-pub struct Program<'a> {
+pub struct Program {
     pub is_tool: bool,
     pub super_class: Option<String>,
-    pub declarations: Vec<Declaration<'a>>,
+    pub declarations: Vec<Declaration>,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
-pub struct Declaration<'a> {
-    pub kind: DeclarationKind<'a>,
+pub struct Declaration {
+    pub kind: DeclarationKind,
     location: Option<Range<LineCol>>
 }
 
-impl <'a> Declaration<'a> {
-    pub fn new(pair: Option<Pair<'a, Rule>>, kind: DeclarationKind<'a>) -> Self {
+impl <'a> Declaration {
+    pub fn new(pair: Option<Pair<'a, Rule>>, kind: DeclarationKind) -> Self {
         Declaration {
             kind,
             location: pair.map(|p| p.line_col_range())
@@ -31,17 +31,17 @@ impl <'a> Declaration<'a> {
 
 
 #[derive(Debug, Eq, PartialEq, Clone)]
-pub enum DeclarationKind<'a> {
+pub enum DeclarationKind {
     EmptyLine,
     // Function(nombre, type, parametros, statements)
-    Function(&'a str, Option<String>, Vec<Parameter>, Vec<Statement>),
+    Function(String, Option<String>, Vec<Parameter>, Vec<Statement>),
     // Var(identifier, value, anotation)
-    Var(String, &'a str, Option<Annotation>),
-    Unknown(&'a str)
+    Var(String, String, Option<Annotation>),
+    Unknown(String)
 }
 
-pub struct Function<'a> {
-    pub name: &'a str,
+pub struct Function {
+    pub name: String,
     pub tipe: Option<String>,
     pub parameters: Vec<Parameter>,
     pub statements: Vec<Statement>
@@ -150,7 +150,7 @@ pub enum ExpressionKind {
     LiteralInt(usize),
     BinaryOperation(Box<Expression>, String, Box<Expression>),
     Unknown(String),
-    // (receiver: Expression, message_name: &'a str, arguments: Vec<Expression>)
+    // (receiver: Expression, message_name: String, arguments: Vec<Expression>)
     LiteralSelf,
     MessageSend(Box<Expression>, String, Vec<Expression>),
     VariableUsage(String)
