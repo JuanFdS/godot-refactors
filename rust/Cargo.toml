@@ -2,6 +2,7 @@
 name = "refactorings" # Appears in the filename of the compiled dynamic library.
 version = "0.1.0"     # You can leave version and edition as-is for now.
 edition = "2021"
+rust-version = "1.80"
 
 [lib]
 crate-type = ["cdylib"]  # Compile this crate to a dynamic C library.
