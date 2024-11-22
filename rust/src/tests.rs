@@ -152,8 +152,12 @@ mod tests {
 
     #[test]
     fn test_program_with_one_function() {
+        let input = text_block_fnl! {
+            "func foo():"
+            "    pass"
+        };
         assert_parse_eq(
-            "func foo():\n    pass",
+            input,
             Program {
                 is_tool: false,
                 super_class: None,
@@ -164,11 +168,20 @@ mod tests {
 
     #[test]
     fn test_program_extract_variable() {
-        let program = GDScriptParser::parse_to_program("func foo():\n\t2+2\n");
+        let input = text_block_fnl! {
+          "func foo():"
+          "\t2+2"
+        };
+        let program = GDScriptParser::parse_to_program(input);
 
         let (new_program, _lines_to_select) = program.extract_variable((2, 2), (2, 4), "coso");
 
-        assert_program_prints_to(new_program, "func foo():\n\tvar coso = 2 + 2\n\tcoso\n");
+        let expected = text_block_fnl! {
+          "func foo():"
+          "\tvar coso = 2 + 2"
+          "\tcoso"
+        };
+        assert_program_prints_to(new_program, expected);
         // assert_eq!(lines_to_select, vec![(2,6) .. (2,9), (3,2) .. (2,5)]);
     }
 
@@ -809,8 +822,13 @@ func foo():
 
     #[test]
     fn program_can_be_tool() {
+        let input = text_block_fnl! {
+            "@tool"
+            "func foo():"
+            "\tpass"
+        };
         assert_parse_eq(
-            "@tool\nfunc foo():\n\tpass\n",
+            input,
             Program {
                 is_tool: true,
                 super_class: None,
@@ -821,6 +839,11 @@ func foo():
 
     #[test]
     fn tool_program_to_string() {
+        let expected = text_block_fnl! {
+         "@tool"
+         "func foo():"
+         "\tpass"
+        };
         assert_eq!(
             Program {
                 is_tool: true,
@@ -829,7 +852,7 @@ func foo():
             }
             .to_string()
             .as_str(),
-            "@tool\nfunc foo():\n\tpass\n"
+            expected
         )
     }
 
@@ -869,8 +892,14 @@ func foo():
 
     #[test]
     fn a_tool_program_with_inheritance_can_be_parsed() {
+        let input = text_block_fnl! {
+            "@tool"
+            "extends Node2D"
+            "func foo():"
+            "\tpass"
+        };
         assert_parse_eq(
-            "@tool\nextends Node2D\nfunc foo():\n\tpass",
+            input,
             Program {
                 is_tool: true,
                 super_class: Some("Node2D".to_owned()),
@@ -887,17 +916,36 @@ func foo():
             declarations: vec![dec_function("foo", None, vec![], vec![statement_pass()])],
         };
 
-        assert_program_prints_to(program, "@tool\nextends Node2D\nfunc foo():\n\tpass\n")
+        let expected = text_block_fnl! {
+            "@tool"
+            "extends Node2D"
+            "func foo():"
+            "\tpass"
+        };
+        assert_program_prints_to(program, expected)
     }
 
     #[test]
     fn tool_program_with_inheritance_roundtrip() {
-        assert_parse_roundtrip("@tool\nextends Node2D\nfunc foo():\n\tpass\n");
+        let input = text_block_fnl! {
+         "@tool"
+         "extends Node2D"
+         "func foo():"
+         "\tpass"
+        };
+        assert_parse_roundtrip(input);
     }
 
     #[test]
     fn parsing_program_with_export_tool_button_annotation() {
-        let input = "@tool\nextends Node\n@export_tool_button(\"Bleh\") var _foo = foo\nfunc foo():\n\tpass".to_string();
+        let input = text_block_fnl! {
+            "@tool"
+            "extends Node"
+            "@export_tool_button(\"Bleh\") var _foo = foo"
+            "func foo():"
+            "\tpass"
+        }
+        .to_string();
 
         assert_parse_eq(
             &input,
@@ -918,44 +966,75 @@ func foo():
 
     #[test]
     fn toggle_tool_button_on_function() {
-        let program = GDScriptParser::parse_to_program("@tool\nextends Node\nfunc foo():\n\tpass");
+        let input = text_block_fnl! {
+            "@tool"
+            "extends Node"
+            "func foo():"
+            "\tpass"
+        };
+        let program = GDScriptParser::parse_to_program(input);
 
         let refactored_program =
             program.toggle_tool_button(program.find_function_declaration_at_line(3).unwrap());
 
-        assert_eq!(
-            refactored_program.to_string(),
-            "@tool\nextends Node\n@export_tool_button(\"foo\") var _foo = foo\nfunc foo():\n\tpass\n"
-        );
+        let expected = text_block_fnl! {
+            "@tool"
+            "extends Node"
+            "@export_tool_button(\"foo\") var _foo = foo"
+            "func foo():"
+            "\tpass"
+        };
+        assert_eq!(refactored_program.to_string(), expected);
     }
 
     #[test]
     fn toggle_tool_button_on_function_from_string_to_string() {
-        let input = "@tool\nextends Node\n\nfunc foo():\n\tpass\n";
+        let input = text_block_fnl! {
+            "@tool"
+            "extends Node"
+            ""
+            "func foo():"
+            "\tpass"
+        };
+
         let program = GDScriptParser::parse_to_program(input);
         let function = program.find_function_declaration_at_line(4).unwrap();
 
         let new_program = program.toggle_tool_button(function);
 
-        assert_program_prints_to(
-            new_program,
-            "@tool\nextends Node\n\n@export_tool_button(\"foo\") var _foo = foo\nfunc foo():\n\tpass\n"
-        );
+        let expected = text_block_fnl! {
+          "@tool"
+          "extends Node"
+          ""
+          "@export_tool_button(\"foo\") var _foo = foo"
+          "func foo():"
+          "\tpass"
+        };
+        assert_program_prints_to(new_program, expected);
     }
 
     #[test]
     fn toggle_tool_button_on_function_that_already_had_a_button_removes_it() {
-        let program = GDScriptParser::parse_to_program(
-            "@tool\nextends Node\n@export_tool_button(\"foo\") var _foo = foo\nfunc foo():\n\tpass",
-        );
+        let input = text_block_fnl! {
+            "@tool"
+            "extends Node"
+            "@export_tool_button(\"foo\") var _foo = foo"
+            "func foo():"
+            "\tpass"
+        };
+
+        let program = GDScriptParser::parse_to_program(input);
 
         let refactored_program =
             program.toggle_tool_button(program.find_function_declaration_at_line(4).unwrap());
 
-        assert_eq!(
-            refactored_program.to_string(),
-            "@tool\nextends Node\nfunc foo():\n\tpass\n"
-        );
+        let expected = text_block_fnl! {
+          "@tool"
+          "extends Node"
+          "func foo():"
+          "\tpass"
+        };
+        assert_eq!(refactored_program.to_string(), expected);
     }
 
     #[test]
