@@ -11,6 +11,7 @@ crate-type = ["cdylib"]  # Compile this crate to a dynamic C library.
 godot = { git = "https://github.com/godot-rust/gdext", branch = "master" }
 pest = "2.7.14"
 pest_derive = "2.7.14"
+text-block-macros = "0.2.0"
 
 [dev-dependencies]
 pretty_assertions = "1.4.1"

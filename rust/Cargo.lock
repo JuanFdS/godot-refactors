@@ -301,6 +301,7 @@ dependencies = [
  "pest",
  "pest_derive",
  "pretty_assertions",
+ "text-block-macros",
 ]
 
 [[package]]
@@ -353,6 +354,12 @@ dependencies = [
  "quote",
  "unicode-ident",
 ]
+
+[[package]]
+name = "text-block-macros"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f1ecd6317fa97541e6cfcdf79c1917ccb8f7a10ec9ece27aaadf5b2b6ccad3e8"
 
 [[package]]
 name = "thiserror"
