@@ -11,22 +11,24 @@ pub struct Program {
     pub declarations: Vec<Declaration>,
 }
 
-impl <'a, K> AstNode<K> {
+impl<'a, K> AstNode<K> {
     pub fn new(pair: Option<Pair<'a, Rule>>, kind: K) -> Self {
         AstNode {
             kind,
-            location: pair.map(|p| p.line_col_range())
+            location: pair.map(|p| p.line_col_range()),
         }
     }
     pub fn contains_range(&self, range: &Range<LineCol>) -> bool {
-        self.location.as_ref().is_some_and(|l| range_contains(l, range))
+        self.location
+            .as_ref()
+            .is_some_and(|l| range_contains(l, range))
     }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct AstNode<K> {
     pub kind: K,
-    location: Option<Range<LineCol>>
+    location: Option<Range<LineCol>>,
 }
 
 pub type Declaration = AstNode<DeclarationKind>;
@@ -34,21 +36,28 @@ pub type Declaration = AstNode<DeclarationKind>;
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub enum DeclarationKind {
     EmptyLine,
-    Function { name: String, return_type: Option<String>, parameters: Vec<Parameter>, statements: Vec<Statement>},
-    Var { identifier: String, value: String, annotation: Option<Annotation> },
-    Unknown(String)
+    Function {
+        name: String,
+        return_type: Option<String>,
+        parameters: Vec<Parameter>,
+        statements: Vec<Statement>,
+    },
+    Var {
+        identifier: String,
+        value: String,
+        annotation: Option<Annotation>,
+    },
+    Unknown(String),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Parameter {
-    pub name: String
+    pub name: String,
 }
 
 impl Parameter {
     pub fn new(_pair: Option<Pair<Rule>>, name: &str) -> Self {
-        Parameter {
-            name: name.into()
-        }
+        Parameter { name: name.into() }
     }
 }
 
@@ -58,7 +67,7 @@ pub type Annotation = AstNode<AnnotationKind>;
 pub enum AnnotationKind {
     Export,
     OnReady,
-    ExportToolButton(String)
+    ExportToolButton(String),
 }
 
 pub type Statement = AstNode<StatementKind>;
@@ -69,7 +78,7 @@ pub enum StatementKind {
     Unknown(String),
     VarDeclaration(String, Expression),
     Expression(Expression),
-    Return(Option<Expression>)
+    Return(Option<Expression>),
 }
 
 pub type Expression = AstNode<ExpressionKind>;
@@ -93,5 +102,5 @@ pub enum ExpressionKind {
     // (receiver: Expression, message_name: String, arguments: Vec<Expression>)
     LiteralSelf,
     MessageSend(Box<Expression>, String, Vec<Expression>),
-    VariableUsage(String)
+    VariableUsage(String),
 }
