@@ -1,15 +1,23 @@
 use crate::godot_ast_types::*;
+use text_block_macros::text_block_fnl;
 
 fn create_program(declarations: Vec<Declaration>) -> Program {
     Program {
         is_tool: false,
         super_class: None,
-        declarations
+        declarations,
     }
 }
 
-fn expr_message_send<'a>(receiver: Expression, message_name: &'a str, arguments: Vec<Expression>) -> Expression {
-    Expression::new(None, ExpressionKind::MessageSend(Box::new(receiver), message_name.into(), arguments))
+fn expr_message_send<'a>(
+    receiver: Expression,
+    message_name: &'a str,
+    arguments: Vec<Expression>,
+) -> Expression {
+    Expression::new(
+        None,
+        ExpressionKind::MessageSend(Box::new(receiver), message_name.into(), arguments),
+    )
 }
 
 fn statement_empty_return<'a>() -> Statement {
@@ -26,14 +34,17 @@ fn expr_self<'a>() -> Expression {
 
 fn expr_variable_usage<'a>(variable_name: String) -> Expression {
     expr_unknown(variable_name)
-} 
+}
 
 fn expr_unknown<'a>(text: String) -> Expression {
     Expression::new(None, ExpressionKind::Unknown(text))
 }
 
 fn expression_binary_op<'a>(a: Expression, op: &'a str, b: Expression) -> Expression {
-    Expression::new(None, ExpressionKind::BinaryOperation(Box::new(a), op.into(), Box::new(b)))
+    Expression::new(
+        None,
+        ExpressionKind::BinaryOperation(Box::new(a), op.into(), Box::new(b)),
+    )
 }
 
 fn literal_int<'a>(number: usize) -> Expression {
@@ -56,27 +67,32 @@ fn statement_var_declaration<'a>(name: &'a str, expression: Expression) -> State
     _statement_with_kind(StatementKind::VarDeclaration(name.into(), expression))
 }
 
-
 fn dec_function(
     function_name: &str,
     function_type: Option<String>,
     parameters: Vec<Parameter>,
     statements: Vec<Statement>,
 ) -> Declaration {
-    DeclarationKind::Function { name: function_name.into(), return_type: function_type, parameters, statements }
-        .to_declaration(None)
+    DeclarationKind::Function {
+        name: function_name.into(),
+        return_type: function_type,
+        parameters,
+        statements,
+    }
+    .to_declaration(None)
 }
 
 fn dec_empty_line<'a>() -> Declaration {
     DeclarationKind::EmptyLine.to_declaration(None)
 }
 
-fn dec_var(
-    identifier: String,
-    value: &str,
-    annotation: Option<Annotation>,
-) -> Declaration {
-    DeclarationKind::Var { identifier, value: value.into(), annotation }.to_declaration(None)
+fn dec_var(identifier: String, value: &str, annotation: Option<Annotation>) -> Declaration {
+    DeclarationKind::Var {
+        identifier,
+        value: value.into(),
+        annotation,
+    }
+    .to_declaration(None)
 }
 
 fn dec_unknown(content: &str) -> Declaration {
@@ -136,8 +152,12 @@ mod tests {
 
     #[test]
     fn test_program_with_one_function() {
+        let input = text_block_fnl! {
+            "func foo():"
+            "    pass"
+        };
         assert_parse_eq(
-            "func foo():\n    pass",
+            input,
             Program {
                 is_tool: false,
                 super_class: None,
@@ -148,11 +168,20 @@ mod tests {
 
     #[test]
     fn test_program_extract_variable() {
-        let program = GDScriptParser::parse_to_program("func foo():\n\t2+2\n");
+        let input = text_block_fnl! {
+          "func foo():"
+          "\t2+2"
+        };
+        let program = GDScriptParser::parse_to_program(input);
 
         let (new_program, _lines_to_select) = program.extract_variable((2, 2), (2, 4), "coso");
 
-        assert_program_prints_to(new_program, "func foo():\n\tvar coso = 2 + 2\n\tcoso\n");
+        let expected = text_block_fnl! {
+          "func foo():"
+          "\tvar coso = 2 + 2"
+          "\tcoso"
+        };
+        assert_program_prints_to(new_program, expected);
         // assert_eq!(lines_to_select, vec![(2,6) .. (2,9), (3,2) .. (2,5)]);
     }
 
@@ -160,16 +189,18 @@ mod tests {
     fn test_parse_function_with_empty_return() {
         let input = "func foo():\n\treturn\n";
 
-        assert_parse_eq(input,
+        assert_parse_eq(
+            input,
             Program {
                 is_tool: false,
                 super_class: None,
-                declarations: vec![
-                    dec_function("foo", None, vec![], vec![
-                        statement_empty_return(),
-                    ])
-                ]
-            }
+                declarations: vec![dec_function(
+                    "foo",
+                    None,
+                    vec![],
+                    vec![statement_empty_return()],
+                )],
+            },
         );
         assert_parse_roundtrip(input);
     }
@@ -178,27 +209,34 @@ mod tests {
     fn test_parse_function_with_message_send_in_its_body() {
         let input = "func foo():\n\treturn 2 + 2\nfunc bar():\n\tself.foo()\n";
 
-        assert_parse_eq(input,
+        assert_parse_eq(
+            input,
             Program {
                 is_tool: false,
                 super_class: None,
                 declarations: vec![
-                    dec_function("foo", None, vec![], vec![
-                        statement_return(
-                            expression_binary_op(literal_int(2), "+", literal_int(2))
-                        ),
-                    ]),
-                    dec_function("bar", None, vec![], vec![
-                        statement_expression(
-                            expr_message_send(
-                                expr_self(),
-                                "foo",
-                                vec![]
-                            )
-                        )
-                    ])
-                ]
-            }
+                    dec_function(
+                        "foo",
+                        None,
+                        vec![],
+                        vec![statement_return(expression_binary_op(
+                            literal_int(2),
+                            "+",
+                            literal_int(2),
+                        ))],
+                    ),
+                    dec_function(
+                        "bar",
+                        None,
+                        vec![],
+                        vec![statement_expression(expr_message_send(
+                            expr_self(),
+                            "foo",
+                            vec![],
+                        ))],
+                    ),
+                ],
+            },
         );
 
         assert_parse_roundtrip(input);
@@ -220,8 +258,7 @@ mod tests {
     }
 
     #[test]
-    fn test_program_extract_variable_from_receiver_of_a_message_send(
-    ) {
+    fn test_program_extract_variable_from_receiver_of_a_message_send() {
         let program = GDScriptParser::parse_to_program(
             "func foo():\n\treturn 2 + 2\nfunc bar():\n\tself.foo()\n",
         );
@@ -235,108 +272,84 @@ mod tests {
     }
 
     #[test]
-    fn test_program_extract_variable_that_is_being_returned(
-    ) {
-        let program = GDScriptParser::parse_to_program(
-            "func foo():\n\treturn 2 + 2\n",
-        );
+    fn test_program_extract_variable_that_is_being_returned() {
+        let program = GDScriptParser::parse_to_program("func foo():\n\treturn 2 + 2\n");
 
         let new_program = program.extract_variable((2, 9), (2, 12), "x").0;
 
-        assert_program_prints_to(
-            new_program,
-            "func foo():\n\tvar x = 2 + 2\n\treturn x\n"
-        );
+        assert_program_prints_to(new_program, "func foo():\n\tvar x = 2 + 2\n\treturn x\n");
     }
 
     #[test]
     fn test_extract_variable_first_binary_operation_within_parentheses() {
-        let program = GDScriptParser::parse_to_program(
-            "func foo():\n\t(2 + 3) + 4\n",
-        );
+        let program = GDScriptParser::parse_to_program("func foo():\n\t(2 + 3) + 4\n");
 
-        let new_program = program.extract_variable((2,3), (2,6), "x").0;
+        let new_program = program.extract_variable((2, 3), (2, 6), "x").0;
 
-        assert_program_prints_to(
-            new_program,
-            "func foo():\n\tvar x = 2 + 3\n\tx + 4\n"
-        );
+        assert_program_prints_to(new_program, "func foo():\n\tvar x = 2 + 3\n\tx + 4\n");
     }
 
     #[test]
     fn test_extract_variable_when_first_member_of_binary_operation_is_message_send() {
-        let program = GDScriptParser::parse_to_program(
-            "func foo():\n\tself.bar() + 4\n",
-        );
+        let program = GDScriptParser::parse_to_program("func foo():\n\tself.bar() + 4\n");
 
-        let new_program = program.extract_variable((2,2), (2,11), "x").0;
+        let new_program = program.extract_variable((2, 2), (2, 11), "x").0;
 
-        assert_program_prints_to(
-            new_program,
-            "func foo():\n\tvar x = self.bar()\n\tx + 4\n"
-        );
+        assert_program_prints_to(new_program, "func foo():\n\tvar x = self.bar()\n\tx + 4\n");
     }
 
     #[test]
     fn test_inline_variable_into_first_member_of_binary_operation() {
-        let program = GDScriptParser::parse_to_program(
-            "func foo():\n\tvar x = 4\n\tx + 2\n",
-        );
+        let program = GDScriptParser::parse_to_program("func foo():\n\tvar x = 4\n\tx + 2\n");
 
-        let new_program = program.inline_variable((2,6), (2,6)).0;
+        let new_program = program.inline_variable((2, 6), (2, 6)).0;
 
-        assert_program_prints_to(
-            new_program,
-            "func foo():\n\t4 + 2\n"
-        );
+        assert_program_prints_to(new_program, "func foo():\n\t4 + 2\n");
     }
 
     #[test]
-    fn test_program_extract_variable_that_is_a_subexpression_of_what_is_being_returned(
-    ) {
-        let program = GDScriptParser::parse_to_program(
-            "func foo():\n\treturn 2 + 2\n",
-        );
+    fn test_program_extract_variable_that_is_a_subexpression_of_what_is_being_returned() {
+        let program = GDScriptParser::parse_to_program("func foo():\n\treturn 2 + 2\n");
 
         let new_program = program.extract_variable((2, 9), (2, 9), "x").0;
 
-        assert_program_prints_to(
-            new_program,
-            "func foo():\n\tvar x = 2\n\treturn x + 2\n"
-        );
+        assert_program_prints_to(new_program, "func foo():\n\tvar x = 2\n\treturn x + 2\n");
     }
 
     #[test]
     fn test_program_parses_return_with_integer_and_message_send() {
         let input = "func foo():\n\treturn 2 + self.bar()\n";
 
-        assert_parse_eq(input, Program {
-            is_tool: false,
-            super_class: None,
-            declarations: vec![
-                dec_function("foo", None, vec![], vec![
-                    statement_return(
-                        expression_binary_op(literal_int(2), "+", expr_message_send(expr_self(), "bar", vec![]))
-                    )
-                ])
-            ]
-        });
+        assert_parse_eq(
+            input,
+            Program {
+                is_tool: false,
+                super_class: None,
+                declarations: vec![dec_function(
+                    "foo",
+                    None,
+                    vec![],
+                    vec![statement_return(expression_binary_op(
+                        literal_int(2),
+                        "+",
+                        expr_message_send(expr_self(), "bar", vec![]),
+                    ))],
+                )],
+            },
+        );
 
         assert_parse_roundtrip(input);
     }
 
     #[test]
-    fn test_program_extract_variable_when_returning_the_addition_of_an_int_and_a_message_send(
-    ) {
-        let program = GDScriptParser::parse_to_program(
-            "func foo():\n\treturn 2 + self.bar()\n",
-        );
+    fn test_program_extract_variable_when_returning_the_addition_of_an_int_and_a_message_send() {
+        let program = GDScriptParser::parse_to_program("func foo():\n\treturn 2 + self.bar()\n");
 
         let new_program = program.extract_variable((2, 9), (2, 9), "dos").0;
 
         assert_program_prints_to(
             new_program,
-            "func foo():\n\tvar dos = 2\n\treturn dos + self.bar()\n"
+            "func foo():\n\tvar dos = 2\n\treturn dos + self.bar()\n",
         );
     }
 
@@ -344,46 +357,39 @@ mod tests {
     fn test_parse_var_declaration_inside_function() {
         let input = "func foo():\n\tvar x = 2\n";
 
-        assert_parse_eq(input, 
-            create_program(
-                vec![
-                    dec_function("foo", None, vec![],
-                        vec![statement_var_declaration("x", literal_int(2))]
-                    )
-                ]
-            )
+        assert_parse_eq(
+            input,
+            create_program(vec![dec_function(
+                "foo",
+                None,
+                vec![],
+                vec![statement_var_declaration("x", literal_int(2))],
+            )]),
         );
         assert_parse_roundtrip(input);
     }
-    
+
     #[test]
-    fn test_program_extract_variable_inside_a_var_declaration(
-    ) {
-        let program = GDScriptParser::parse_to_program(
-            "func foo():\n\tvar x = 2\n\treturn x\n",
-        );
+    fn test_program_extract_variable_inside_a_var_declaration() {
+        let program = GDScriptParser::parse_to_program("func foo():\n\tvar x = 2\n\treturn x\n");
 
         let new_program = program.extract_variable((2, 10), (2, 10), "y").0;
 
         assert_program_prints_to(
             new_program,
             "func foo():\n\tvar y = 2\n\tvar x = y\n\treturn x\n",
-
         );
     }
 
     #[test]
-    fn test_program_extract_variable_extract_subexpression_of_subexpression(
-    ) {
-        let program = GDScriptParser::parse_to_program(
-            "func foo():\n\treturn 2 + self.bar()\n",
-        );
+    fn test_program_extract_variable_extract_subexpression_of_subexpression() {
+        let program = GDScriptParser::parse_to_program("func foo():\n\treturn 2 + self.bar()\n");
 
         let new_program = program.extract_variable((2, 13), (2, 16), "x").0;
 
         assert_program_prints_to(
             new_program,
-            "func foo():\n\tvar x = self\n\treturn 2 + x.bar()\n"
+            "func foo():\n\tvar x = self\n\treturn 2 + x.bar()\n",
         );
     }
 
@@ -399,20 +405,22 @@ mod tests {
     #[test]
     fn parse_expression_with_binary_operation_and_literal_numbers() {
         let input = "func foo():\n\t2 + 3\n";
-        assert_parse_eq(input,
+        assert_parse_eq(
+            input,
             Program {
                 is_tool: false,
                 super_class: None,
-                declarations: vec![
-                    dec_function("foo", None, vec![], vec![
-                        statement_expression(
-                            expression_binary_op(
-                                literal_int(2), "+", literal_int(3)
-                            )
-                        )
-                    ])
-                ]
-            }
+                declarations: vec![dec_function(
+                    "foo",
+                    None,
+                    vec![],
+                    vec![statement_expression(expression_binary_op(
+                        literal_int(2),
+                        "+",
+                        literal_int(3),
+                    ))],
+                )],
+            },
         );
 
         assert_parse_roundtrip(input);
@@ -424,24 +432,31 @@ mod tests {
 
         let new_program = program.extract_variable((2, 2), (2, 2), "y").0;
 
-        assert_program_prints_to(new_program, "
+        assert_program_prints_to(
+            new_program,
+            "
 func foo():
 \tvar y = 2
 \ty + 3
-");
+",
+        );
     }
 
     #[test]
-    fn test_program_extract_variable_lets_me_extract_a_subexpression_even_if_its_the_rightmost_expression() {
+    fn test_program_extract_variable_lets_me_extract_a_subexpression_even_if_its_the_rightmost_expression(
+    ) {
         let program = GDScriptParser::parse_to_program("func foo():\n\t2+3\n");
 
         let new_program = program.extract_variable((2, 4), (2, 4), "y").0;
 
-        assert_program_prints_to(new_program, "
+        assert_program_prints_to(
+            new_program,
+            "
 func foo():
 \tvar y = 3
 \t2 + y
-");
+",
+        );
     }
 
     #[test]
@@ -449,27 +464,33 @@ func foo():
         let input = "func foo():\n\tvar suma = 2 + 3\n\tsuma\n";
         let program = GDScriptParser::parse_to_program(input);
 
-        assert_parse_eq(input,
-        create_program(vec![
-            dec_function("foo", None, vec![], vec![
-                statement_var_declaration("suma",
-                    expression_binary_op(literal_int(2), "+", literal_int(3))
-                ),
-                statement_expression(expr_variable_usage("suma".to_string()))
-            ])
-        ]));
+        assert_parse_eq(
+            input,
+            create_program(vec![dec_function(
+                "foo",
+                None,
+                vec![],
+                vec![
+                    statement_var_declaration(
+                        "suma",
+                        expression_binary_op(literal_int(2), "+", literal_int(3)),
+                    ),
+                    statement_expression(expr_variable_usage("suma".to_string())),
+                ],
+            )]),
+        );
 
-        let new_program = program.inline_variable((2,6), (2,9)).0;
+        let new_program = program.inline_variable((2, 6), (2, 9)).0;
 
         assert_program_prints_to(new_program, "func foo():\n\t2 + 3\n");
     }
-    
+
     #[test]
     fn test_program_inline_variable_works_when_there_are_2_functions() {
         let input = "func bar():\n\tpass\nfunc foo():\n\tvar suma = 2 + 3\n\tsuma\n";
         let program = GDScriptParser::parse_to_program(input);
 
-        let new_program = program.inline_variable((4,6), (4,9)).0;
+        let new_program = program.inline_variable((4, 6), (4, 9)).0;
 
         assert_program_prints_to(new_program, "func bar():\n\tpass\nfunc foo():\n\t2 + 3\n");
     }
@@ -478,19 +499,23 @@ func foo():
         let input = "func foo():\n\tvar suma = 2 + 3\n\treturn suma\n";
         let program = GDScriptParser::parse_to_program(input);
 
-        assert_parse_eq(input,
-            create_program(vec![
-                dec_function("foo", None, vec![], vec![
-                    statement_var_declaration("suma",
-                        expression_binary_op(literal_int(2), "+", literal_int(3))
+        assert_parse_eq(
+            input,
+            create_program(vec![dec_function(
+                "foo",
+                None,
+                vec![],
+                vec![
+                    statement_var_declaration(
+                        "suma",
+                        expression_binary_op(literal_int(2), "+", literal_int(3)),
                     ),
-                    statement_return(
-                        expr_variable_usage("suma".to_string())
-                    )
-                ])
-            ]));
+                    statement_return(expr_variable_usage("suma".to_string())),
+                ],
+            )]),
+        );
 
-        let new_program = program.inline_variable((2,6), (2,9)).0;
+        let new_program = program.inline_variable((2, 6), (2, 9)).0;
 
         assert_program_prints_to(new_program, "func foo():\n\treturn 2 + 3\n");
     }
@@ -572,7 +597,8 @@ func foo():
                     dec_function("foo", None, vec![], vec![statement_pass()]),
                     dec_function("bar", None, vec![], vec![statement_pass()]),
                 ],
-            }.to_string(),
+            }
+            .to_string(),
             "
 func foo():
 \tpass
@@ -670,24 +696,25 @@ func bar():
 
         assert_program_prints_to(
             refactored_program,
-"
+            "
 func bar():
 \tpass
 func foo():
 \tpass
-"
+",
         )
     }
 
     #[test]
     fn moving_function_around_when_there_are_multiple_empty_lines_once() {
-        let program =
-            GDScriptParser::parse_to_program("
+        let program = GDScriptParser::parse_to_program(
+            "
 func foo():
 \tpass
 
 func bar():
-\tpass");
+\tpass",
+        );
 
         let foo_function = program.find_function_declaration_at_line(2).unwrap();
 
@@ -707,18 +734,18 @@ func bar():
 
     #[test]
     fn moving_function_around_when_there_are_multiple_empty_lines_twice() {
-        let program =
-            GDScriptParser::parse_to_program("
+        let program = GDScriptParser::parse_to_program(
+            "
 
 func foo():
 \tpass
 func bar():
-\tpass");
+\tpass",
+        );
 
         let foo_function = program.find_function_declaration_at_line(3).unwrap();
 
-        let program_with_foo_two_times_down =
-            program.move_declaration_down(foo_function.clone());
+        let program_with_foo_two_times_down = program.move_declaration_down(foo_function.clone());
         assert_eq!(
             program_with_foo_two_times_down.to_string().as_str(),
             "
@@ -795,8 +822,13 @@ func foo():
 
     #[test]
     fn program_can_be_tool() {
+        let input = text_block_fnl! {
+            "@tool"
+            "func foo():"
+            "\tpass"
+        };
         assert_parse_eq(
-            "@tool\nfunc foo():\n\tpass\n",
+            input,
             Program {
                 is_tool: true,
                 super_class: None,
@@ -807,6 +839,11 @@ func foo():
 
     #[test]
     fn tool_program_to_string() {
+        let expected = text_block_fnl! {
+         "@tool"
+         "func foo():"
+         "\tpass"
+        };
         assert_eq!(
             Program {
                 is_tool: true,
@@ -815,7 +852,7 @@ func foo():
             }
             .to_string()
             .as_str(),
-            "@tool\nfunc foo():\n\tpass\n"
+            expected
         )
     }
 
@@ -855,8 +892,14 @@ func foo():
 
     #[test]
     fn a_tool_program_with_inheritance_can_be_parsed() {
+        let input = text_block_fnl! {
+            "@tool"
+            "extends Node2D"
+            "func foo():"
+            "\tpass"
+        };
         assert_parse_eq(
-            "@tool\nextends Node2D\nfunc foo():\n\tpass",
+            input,
             Program {
                 is_tool: true,
                 super_class: Some("Node2D".to_owned()),
@@ -873,17 +916,36 @@ func foo():
             declarations: vec![dec_function("foo", None, vec![], vec![statement_pass()])],
         };
 
-        assert_program_prints_to(program, "@tool\nextends Node2D\nfunc foo():\n\tpass\n")
+        let expected = text_block_fnl! {
+            "@tool"
+            "extends Node2D"
+            "func foo():"
+            "\tpass"
+        };
+        assert_program_prints_to(program, expected)
     }
 
     #[test]
     fn tool_program_with_inheritance_roundtrip() {
-        assert_parse_roundtrip("@tool\nextends Node2D\nfunc foo():\n\tpass\n");
+        let input = text_block_fnl! {
+         "@tool"
+         "extends Node2D"
+         "func foo():"
+         "\tpass"
+        };
+        assert_parse_roundtrip(input);
     }
 
     #[test]
     fn parsing_program_with_export_tool_button_annotation() {
-        let input = "@tool\nextends Node\n@export_tool_button(\"Bleh\") var _foo = foo\nfunc foo():\n\tpass".to_string();
+        let input = text_block_fnl! {
+            "@tool"
+            "extends Node"
+            "@export_tool_button(\"Bleh\") var _foo = foo"
+            "func foo():"
+            "\tpass"
+        }
+        .to_string();
 
         assert_parse_eq(
             &input,
@@ -904,47 +966,84 @@ func foo():
 
     #[test]
     fn toggle_tool_button_on_function() {
-        let program = GDScriptParser::parse_to_program("@tool\nextends Node\nfunc foo():\n\tpass");
+        let input = text_block_fnl! {
+            "@tool"
+            "extends Node"
+            "func foo():"
+            "\tpass"
+        };
+        let program = GDScriptParser::parse_to_program(input);
 
         let refactored_program =
             program.toggle_tool_button(program.find_function_declaration_at_line(3).unwrap());
 
-        assert_eq!(
-            refactored_program.to_string(),
-            "@tool\nextends Node\n@export_tool_button(\"foo\") var _foo = foo\nfunc foo():\n\tpass\n"
-        );
+        let expected = text_block_fnl! {
+            "@tool"
+            "extends Node"
+            "@export_tool_button(\"foo\") var _foo = foo"
+            "func foo():"
+            "\tpass"
+        };
+        assert_eq!(refactored_program.to_string(), expected);
     }
 
     #[test]
     fn toggle_tool_button_on_function_from_string_to_string() {
-        let input = "@tool\nextends Node\n\nfunc foo():\n\tpass\n";
+        let input = text_block_fnl! {
+            "@tool"
+            "extends Node"
+            ""
+            "func foo():"
+            "\tpass"
+        };
+
         let program = GDScriptParser::parse_to_program(input);
         let function = program.find_function_declaration_at_line(4).unwrap();
 
         let new_program = program.toggle_tool_button(function);
 
-        assert_program_prints_to(
-            new_program,
-            "@tool\nextends Node\n\n@export_tool_button(\"foo\") var _foo = foo\nfunc foo():\n\tpass\n"
-        );
+        let expected = text_block_fnl! {
+          "@tool"
+          "extends Node"
+          ""
+          "@export_tool_button(\"foo\") var _foo = foo"
+          "func foo():"
+          "\tpass"
+        };
+        assert_program_prints_to(new_program, expected);
     }
 
     #[test]
     fn toggle_tool_button_on_function_that_already_had_a_button_removes_it() {
-        let program = GDScriptParser::parse_to_program("@tool\nextends Node\n@export_tool_button(\"foo\") var _foo = foo\nfunc foo():\n\tpass");
+        let input = text_block_fnl! {
+            "@tool"
+            "extends Node"
+            "@export_tool_button(\"foo\") var _foo = foo"
+            "func foo():"
+            "\tpass"
+        };
+
+        let program = GDScriptParser::parse_to_program(input);
 
         let refactored_program =
             program.toggle_tool_button(program.find_function_declaration_at_line(4).unwrap());
 
-        assert_eq!(
-            refactored_program.to_string(),
-            "@tool\nextends Node\nfunc foo():\n\tpass\n"
-        );
+        let expected = text_block_fnl! {
+          "@tool"
+          "extends Node"
+          "func foo():"
+          "\tpass"
+        };
+        assert_eq!(refactored_program.to_string(), expected);
     }
 
     #[test]
     fn toggle_tool_button_on_function_that_already_had_a_button_removes_it_even_with_underscores() {
-        let input = "@export_tool_button(\"f_oo\") var _f_oo = f_oo\nfunc f_oo():\n\tpass\n";
+        let input = text_block_fnl! {
+            "@export_tool_button(\"f_oo\") var _f_oo = f_oo"
+            "func f_oo():"
+            "\tpass"
+        };
         let program = GDScriptParser::parse_to_program(input);
         let function = program.find_function_declaration_at_line(2).unwrap();
 
@@ -955,7 +1054,13 @@ func foo():
 
     #[test]
     fn if_there_are_unknown_lines_they_are_parsed_as_unknwowns() {
-        let input = "func foo():\n\tpass\n\nsaracatunga = 3 + 7\n$coso.3\n";
+        let input = text_block_fnl! {
+            "func foo():"
+            "\tpass"
+            ""
+            "saracatunga = 3 + 7"
+            "$coso.3"
+        };
 
         assert_parse_eq(
             input,
@@ -974,14 +1079,24 @@ func foo():
 
     #[test]
     fn if_there_are_unknown_lines_they_are_parsed_back_as_they_were() {
-        let input = "func foo():\n\tpass\n\nsaracatunga = 3 + 7\n$coso.3\n";
+        let input = text_block_fnl! {
+            "func foo():"
+            "\tpass"
+            ""
+            "saracatunga = 3 + 7"
+            "$coso.3"
+        };
 
         assert_parse_roundtrip(input);
     }
 
     #[test]
     fn parse_function_with_body_even_if_it_has_unknowns() {
-        let input = "func foo():\n\tpass\n\tsaracatunga = 3 + 7\n";
+        let input = text_block_fnl! {
+            "func foo():"
+            "\tpass"
+            "\tsaracatunga = 3 + 7"
+        };
 
         assert_parse_eq(
             input,
@@ -1003,7 +1118,10 @@ func foo():
 
     #[test]
     fn parse_functions_with_parameters() {
-        let input = "func foo(arg1, arg2):\n\tpass\n";
+        let input = text_block_fnl! {
+            "func foo(arg1, arg2):"
+            "\tpass"
+        };
 
         assert_parse_eq(
             input,
@@ -1013,10 +1131,7 @@ func foo():
                 declarations: vec![dec_function(
                     "foo",
                     None,
-                    vec![
-                        parameter("arg1"),
-                        parameter("arg2"),
-                    ],
+                    vec![parameter("arg1"), parameter("arg2")],
                     vec![statement_pass()],
                 )],
             },
@@ -1031,25 +1146,33 @@ func foo():
             declarations: vec![dec_function(
                 "foo",
                 None,
-                vec![
-                    parameter("arg1"),
-                    parameter("arg2"),
-                ],
+                vec![parameter("arg1"), parameter("arg2")],
                 vec![statement_pass()],
             )],
         };
 
-        assert_program_prints_to(program, "func foo(arg1, arg2):\n\tpass\n");
+        let expected = text_block_fnl! {
+            "func foo(arg1, arg2):"
+            "\tpass"
+        };
+        assert_program_prints_to(program, expected);
     }
 
     #[test]
     fn function_with_parameters_roundtrip() {
-        assert_parse_roundtrip("func foo(arg1, arg2):\n\tpass\n");
+        let input = text_block_fnl! {
+            "func foo(arg1, arg2):"
+            "\tpass"
+        };
+        assert_parse_roundtrip(input);
     }
 
     #[test]
     fn parse_function_with_type() {
-        let input = "func foo(arg1, arg2) -> String:\n\tpass\n";
+        let input = text_block_fnl! {
+            "func foo(arg1, arg2) -> String:"
+            "\tpass"
+        };
 
         assert_parse_eq(
             input,
@@ -1059,10 +1182,7 @@ func foo():
                 declarations: vec![dec_function(
                     "foo",
                     Some("String".to_string()),
-                    vec![
-                        parameter("arg1"),
-                        parameter("arg2"),
-                    ],
+                    vec![parameter("arg1"), parameter("arg2")],
                     vec![statement_pass()],
                 )],
             },
@@ -1077,41 +1197,60 @@ func foo():
             declarations: vec![dec_function(
                 "foo",
                 Some("String".to_string()),
-                vec![
-                    parameter("arg1"),
-                    parameter("arg2"),
-                ],
+                vec![parameter("arg1"), parameter("arg2")],
                 vec![statement_pass()],
             )],
         };
 
-        assert_program_prints_to(program, "func foo(arg1, arg2) -> String:\n\tpass\n");
+        let expected = text_block_fnl! {
+            "func foo(arg1, arg2) -> String:"
+            "\tpass"
+        };
+
+        assert_program_prints_to(program, expected);
     }
 
     #[test]
     fn a_program_is_not_valid_if_it_has_unknowns() {
-        let program = GDScriptParser::parse_to_program("function foo():\n\tpass");
+        let input = text_block_fnl! {
+            "function foo():"
+            "\tpass"
+        };
+        let program = GDScriptParser::parse_to_program(input);
 
         assert!(!program.is_valid());
     }
 
     #[test]
     fn a_program_is_valid_if_it_does_not_have_any_unknown() {
-        let program = GDScriptParser::parse_to_program("func foo():\n\tpass");
+        let input = text_block_fnl! {
+            "func foo():"
+            "\tpass"
+        };
+        let program = GDScriptParser::parse_to_program(input);
 
         assert!(program.is_valid());
     }
 
     #[test]
     fn a_valid_program_first_error_is_none() {
-        let program = GDScriptParser::parse_to_program("func foo():\n\tpass");
+        let input = text_block_fnl! {
+            "func foo():"
+            "\tpass"
+        };
+        let program = GDScriptParser::parse_to_program(input);
 
         assert_eq!(None, program.first_error());
     }
 
     #[test]
     fn an_invalid_program_first_error_is_its_first_unknown() {
-        let program = GDScriptParser::parse_to_program("function foo():\n\tpass");
+        let input = text_block_fnl! {
+            "function foo():"
+            "\tpass"
+        };
+
+        let program = GDScriptParser::parse_to_program(input);
 
         assert_eq!(
             Some(dec_unknown("function foo():")),
@@ -1121,7 +1260,11 @@ func foo():
 
     #[test]
     fn identifiers_of_functions_and_variables_can_have_underscores() {
-        let input = "func __f_o_o__():\n\tpass\nvar _b_a_r_ = 2";
+        let input = text_block_fnl! {
+            "func __f_o_o__():"
+            "\tpass"
+            "var _b_a_r_ = 2"
+        };
 
         assert_parse_eq(
             input,
@@ -1138,17 +1281,21 @@ func foo():
 
     #[test]
     #[ignore]
-    fn get_ocurrences_of_variable_returns_a_list_of_text_ranges_where_the_variable_is_declared_and_used() {
-        let input = "
-func foo():
-\tvar bar = 2
-\tvar x = 3 + bar
-\treturn bar - bar";
-        
+    fn get_ocurrences_of_variable_returns_a_list_of_text_ranges_where_the_variable_is_declared_and_used(
+    ) {
+        let input = text_block_fnl! {
+           "func foo():"
+            "\tvar bar = 2"
+            "\tvar x = 3 + bar"
+            "\treturn bar - bar"
+        };
+
         let program = GDScriptParser::parse_to_program(input);
-        let occurrences = program.get_ocurrences_of_variable((2,6), (2,8));
-        assert_eq!(occurrences,
-            vec![(2, 6) .. (2, 8), (3, 9) .. (3, 11), (3, 15) .. (3, 17)])
+        let occurrences = program.get_ocurrences_of_variable((2, 6), (2, 8));
+        assert_eq!(
+            occurrences,
+            vec![(2, 6)..(2, 8), (3, 9)..(3, 11), (3, 15)..(3, 17)]
+        )
     }
 
     // #[test]
