@@ -81,16 +81,18 @@ func _input(event):
 		var selected_line_text: String = code_edit.get_line(selected_line)
 
 		if event.pressed and event.ctrl_pressed and event.keycode == KEY_DOWN:
-			code_edit.text = mi_parser.bajar(selected_text, all_text)
-			var pos = code_edit.search(selected_text.split("\n")[0], 0, 0, 0)
-			var amount_of_lines = selected_text.split("\n").size()
+			var focused_function = mi_parser.function_at_line(selected_line, all_text)
+			code_edit.text = mi_parser.bajar(selected_line, all_text)
+			var pos = code_edit.search(focused_function.split("\n")[0], TextEdit.SEARCH_MATCH_CASE, 0, 0)
+			var amount_of_lines = focused_function.split("\n").size()
 			var finishing_caret_line = pos.y + amount_of_lines - 1
 			var finishing_caret_column = code_edit.get_line_width(finishing_caret_line)
 			code_edit.select(pos.y, pos.x, finishing_caret_line, finishing_caret_column)
 		elif event.pressed and event.ctrl_pressed and event.keycode == KEY_UP:
-			code_edit.text = mi_parser.subir(selected_text, all_text)
-			var pos = code_edit.search(selected_text.split("\n")[0], 0, 0, 0)
-			var amount_of_lines = selected_text.split("\n").size()
+			var focused_function = mi_parser.function_at_line(selected_line, all_text)
+			code_edit.text = mi_parser.subir(selected_line, all_text)
+			var pos = code_edit.search(focused_function.split("\n")[0], TextEdit.SEARCH_MATCH_CASE, 0, 0)
+			var amount_of_lines = focused_function.split("\n").size()
 			var finishing_caret_line = pos.y + amount_of_lines - 1
 			var finishing_caret_column = code_edit.get_line_width(finishing_caret_line)
 			code_edit.select(pos.y, pos.x, finishing_caret_line, finishing_caret_column)
@@ -172,16 +174,18 @@ func toggle_tool_button(selected_line: int):
 	var code_edit = _code_edit()
 	var all_text = code_edit.text
 	var selected_function = mi_parser.function_at_line(selected_line, all_text)
-	var new_text = mi_parser.toggle_tool_button(selected_function, all_text)
+	var new_text = mi_parser.toggle_tool_button(selected_line, all_text)
 	if new_text != all_text:
 		var diff_lines = new_text.split("\n").size() - all_text.split("\n").size()
 		var previous_caret_line = code_edit.get_caret_line()
 		var previous_caret_column = code_edit.get_caret_column()
+		code_edit.begin_complex_operation()
 		code_edit.clear()
 		code_edit.insert_text(new_text, 0, 0)
 		#code_edit.text = new_text
 		code_edit.set_caret_column(previous_caret_column)
 		code_edit.set_caret_line(max(0, previous_caret_line + diff_lines))
+		code_edit.end_complex_operation()
 		#return
 		#var script: Script = EditorInterface.get_script_editor().get_current_script()
 		#script.source_code = code_edit.text

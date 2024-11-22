@@ -63,7 +63,7 @@ fn dec_function(
     parameters: Vec<Parameter>,
     statements: Vec<Statement>,
 ) -> Declaration {
-    DeclarationKind::Function(function_name.into(), function_type, parameters, statements)
+    DeclarationKind::Function { name: function_name.into(), return_type: function_type, parameters, statements }
         .to_declaration(None)
 }
 
@@ -76,7 +76,7 @@ fn dec_var(
     value: &str,
     annotation: Option<Annotation>,
 ) -> Declaration {
-    DeclarationKind::Var(identifier, value.into(), annotation).to_declaration(None)
+    DeclarationKind::Var { identifier, value: value.into(), annotation }.to_declaration(None)
 }
 
 fn dec_unknown(content: &str) -> Declaration {
@@ -680,7 +680,7 @@ func foo():
     }
 
     #[test]
-    fn moving_function_around_when_there_are_multiple_empty_lines() {
+    fn moving_function_around_when_there_are_multiple_empty_lines_once() {
         let program =
             GDScriptParser::parse_to_program("
 func foo():
@@ -689,9 +689,9 @@ func foo():
 func bar():
 \tpass");
 
-        let foo_function = || GDScriptParser::parse_to_declaration("func foo():\n\tpass");
+        let foo_function = program.find_function_declaration_at_line(2).unwrap();
 
-        let program_with_foo_one_time_down = program.move_declaration_down(foo_function());
+        let program_with_foo_one_time_down = program.move_declaration_down(foo_function.clone());
 
         assert_eq!(
             program_with_foo_one_time_down.to_string().as_str(),
@@ -703,9 +703,22 @@ func bar():
 \tpass
 "
         );
+    }
+
+    #[test]
+    fn moving_function_around_when_there_are_multiple_empty_lines_twice() {
+        let program =
+            GDScriptParser::parse_to_program("
+
+func foo():
+\tpass
+func bar():
+\tpass");
+
+        let foo_function = program.find_function_declaration_at_line(3).unwrap();
 
         let program_with_foo_two_times_down =
-            program_with_foo_one_time_down.move_declaration_down(foo_function());
+            program.move_declaration_down(foo_function.clone());
         assert_eq!(
             program_with_foo_two_times_down.to_string().as_str(),
             "
@@ -891,39 +904,24 @@ func foo():
 
     #[test]
     fn toggle_tool_button_on_function() {
-        let program = Program {
-            is_tool: true,
-            super_class: Some("Node".to_owned()),
-            declarations: vec![dec_function("foo", None, vec![], vec![statement_pass()])],
-        };
+        let program = GDScriptParser::parse_to_program("@tool\nextends Node\nfunc foo():\n\tpass");
 
         let refactored_program =
-            program.toggle_tool_button(dec_function("foo", None, vec![], vec![statement_pass()]));
+            program.toggle_tool_button(program.find_function_declaration_at_line(3).unwrap());
 
         assert_eq!(
-            refactored_program,
-            Program {
-                is_tool: true,
-                super_class: Some("Node".to_owned()),
-                declarations: vec![
-                    dec_var(
-                        "_foo".to_string(),
-                        "foo",
-                        Some(AnnotationKind::ExportToolButton("foo".into()).to_annotation())
-                    ),
-                    dec_function("foo", None, vec![], vec![statement_pass()])
-                ]
-            }
+            refactored_program.to_string(),
+            "@tool\nextends Node\n@export_tool_button(\"foo\") var _foo = foo\nfunc foo():\n\tpass\n"
         );
     }
 
     #[test]
     fn toggle_tool_button_on_function_from_string_to_string() {
         let input = "@tool\nextends Node\n\nfunc foo():\n\tpass\n";
-
         let program = GDScriptParser::parse_to_program(input);
-        let foo = GDScriptParser::parse_to_declaration("func foo():\n\tpass");
-        let new_program = program.toggle_tool_button(foo);
+        let function = program.find_function_declaration_at_line(4).unwrap();
+
+        let new_program = program.toggle_tool_button(function);
 
         assert_program_prints_to(
             new_program,
@@ -933,40 +931,24 @@ func foo():
 
     #[test]
     fn toggle_tool_button_on_function_that_already_had_a_button_removes_it() {
-        let program = Program {
-            is_tool: true,
-            super_class: Some("Node".to_owned()),
-            declarations: vec![
-                dec_var(
-                    "_foo".to_string(),
-                    "foo",
-                    Some(AnnotationKind::ExportToolButton("foo".into()).to_annotation()),
-                ),
-                dec_function("foo", None, vec![], vec![statement_pass()]),
-            ],
-        };
+        let program = GDScriptParser::parse_to_program("@tool\nextends Node\n@export_tool_button(\"foo\") var _foo = foo\nfunc foo():\n\tpass");
 
         let refactored_program =
-            program.toggle_tool_button(dec_function("foo", None, vec![], vec![statement_pass()]));
+            program.toggle_tool_button(program.find_function_declaration_at_line(4).unwrap());
 
         assert_eq!(
-            refactored_program,
-            Program {
-                is_tool: true,
-                super_class: Some("Node".to_owned()),
-                declarations: vec![dec_function("foo", None, vec![], vec![statement_pass()])]
-            }
-        )
+            refactored_program.to_string(),
+            "@tool\nextends Node\nfunc foo():\n\tpass\n"
+        );
     }
 
     #[test]
     fn toggle_tool_button_on_function_that_already_had_a_button_removes_it_even_with_underscores() {
         let input = "@export_tool_button(\"f_oo\") var _f_oo = f_oo\nfunc f_oo():\n\tpass\n";
-
         let program = GDScriptParser::parse_to_program(input);
+        let function = program.find_function_declaration_at_line(2).unwrap();
 
-        let foo_function = GDScriptParser::parse_to_declaration("func f_oo():\n\tpass\n");
-        let new_program = program.toggle_tool_button(foo_function);
+        let new_program = program.toggle_tool_button(function);
 
         assert_program_prints_to(new_program, "func f_oo():\n\tpass\n")
     }

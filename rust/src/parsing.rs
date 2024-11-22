@@ -127,7 +127,8 @@ impl GDScriptParser {
                     .into_inner()
                     .filter_map(Self::to_statement)
                     .collect();
-                DeclarationKind::Function(function_name.into(), return_type, parameters, function_body).to_declaration(Some(parse_result))
+                DeclarationKind::Function { name: function_name.into(), return_type, parameters, statements: function_body }
+                    .to_declaration(Some(parse_result))
             },
             Rule::empty_line => DeclarationKind::EmptyLine.to_declaration(Some(parse_result)),
             Rule::var_declaration => {
@@ -137,11 +138,11 @@ impl GDScriptParser {
                 let identifier = inner_rules.find(
                     |p| p.as_rule() == Rule::identifier).unwrap();
                 let expression = inner_rules.find(|p| p.as_rule() == Rule::expression).unwrap();
-                DeclarationKind::Var(
-                    identifier.as_span().as_str().into(),
-                    expression.as_span().as_str().into(),
-                    annotation.map(|pair| Self::to_annotation(pair))
-                ).to_declaration(Some(parse_result))
+                DeclarationKind::Var {
+                    identifier: identifier.as_span().as_str().into(),
+                    value: expression.as_span().as_str().into(),
+                    annotation: annotation.map(|pair| Self::to_annotation(pair))
+                }.to_declaration(Some(parse_result))
             }
             Rule::unknown => {
                 DeclarationKind::Unknown(parse_result.as_span().as_str().into()).to_declaration(Some(parse_result))

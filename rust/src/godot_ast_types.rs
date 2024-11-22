@@ -11,15 +11,9 @@ pub struct Program {
     pub declarations: Vec<Declaration>,
 }
 
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub struct Declaration {
-    pub kind: DeclarationKind,
-    location: Option<Range<LineCol>>
-}
-
-impl <'a> Declaration {
-    pub fn new(pair: Option<Pair<'a, Rule>>, kind: DeclarationKind) -> Self {
-        Declaration {
+impl <'a, K> AstNode<K> {
+    pub fn new(pair: Option<Pair<'a, Rule>>, kind: K) -> Self {
+        AstNode {
             kind,
             location: pair.map(|p| p.line_col_range())
         }
@@ -29,14 +23,19 @@ impl <'a> Declaration {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct AstNode<K> {
+    pub kind: K,
+    location: Option<Range<LineCol>>
+}
+
+pub type Declaration = AstNode<DeclarationKind>;
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub enum DeclarationKind {
     EmptyLine,
-    // Function(nombre, type, parametros, statements)
-    Function(String, Option<String>, Vec<Parameter>, Vec<Statement>),
-    // Var(identifier, value, anotation)
-    Var(String, String, Option<Annotation>),
+    Function { name: String, return_type: Option<String>, parameters: Vec<Parameter>, statements: Vec<Statement>},
+    Var { identifier: String, value: String, annotation: Option<Annotation> },
     Unknown(String)
 }
 
@@ -53,20 +52,7 @@ impl Parameter {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub struct Annotation {
-    pub kind: AnnotationKind,
-    location: Option<Range<LineCol>>,
-}
-
-impl Annotation {
-    pub fn new(pair: Option<Pair<Rule>>, kind: AnnotationKind) -> Self {
-        Annotation {
-            kind,
-            location: pair.map(|p| p.line_col_range())
-        }
-    }
-}
+pub type Annotation = AstNode<AnnotationKind>;
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum AnnotationKind {
@@ -75,29 +61,7 @@ pub enum AnnotationKind {
     ExportToolButton(String)
 }
 
-#[derive(Debug, Eq, Clone)]
-pub struct Statement {
-    pub kind: StatementKind,
-    location: Option<Range<LineCol>>,
-}
-
-impl Statement {
-    pub fn new(pair: Option<Pair<Rule>>, kind: StatementKind) -> Self {
-        Statement {
-            kind,
-            location: pair.map(|p| p.line_col_range())
-        }
-    }
-    pub fn contains_range(&self, range: &Range<LineCol>) -> bool {
-        self.location.as_ref().is_some_and(|l| range_contains(l, range))
-    }
-}
-
-impl<'a> PartialEq for Statement {
-    fn eq(&self, other: &Self) -> bool {
-        self.kind == other.kind
-    }
-}
+pub type Statement = AstNode<StatementKind>;
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub enum StatementKind {
@@ -108,24 +72,9 @@ pub enum StatementKind {
     Return(Option<Expression>)
 }
 
-#[derive(Debug, Eq, PartialEq, Clone)]
-
-pub struct Expression {
-    pub kind: ExpressionKind,
-    location: Option<Range<LineCol>>
-}
+pub type Expression = AstNode<ExpressionKind>;
 
 impl Expression {
-    pub fn new(pair: Option<Pair<Rule>>, kind: ExpressionKind) -> Self {
-        Expression {
-            kind,
-            location: pair.map(|p| p.line_col_range())
-        }
-    }
-    pub fn contains_range(&self, range: &Range<LineCol>) -> bool {
-        self.location.as_ref().is_some_and(|l| range_contains(l, range))
-    }
-
     pub fn line_col_range(&self) -> Range<LineCol> {
         self.location.as_ref().unwrap().clone()
     }
