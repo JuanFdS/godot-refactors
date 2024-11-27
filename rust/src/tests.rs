@@ -174,7 +174,7 @@ mod tests {
         };
         let program = GDScriptParser::parse_to_program(input);
 
-        let (new_program, _lines_to_select) = program.extract_variable((2, 2), (2, 4), "coso");
+        let (new_program, lines_to_select) = program.extract_variable((2, 2), (2, 4), "coso");
 
         let expected = text_block_fnl! {
           "func foo():"
@@ -182,7 +182,7 @@ mod tests {
           "\tcoso"
         };
         assert_program_prints_to(new_program, expected);
-        // assert_eq!(lines_to_select, vec![(2,6) .. (2,9), (3,2) .. (2,5)]);
+        assert_eq!(lines_to_select, vec![(1,5) .. (1,9), (2,1) .. (2,5)]);
     }
 
     #[test]
@@ -249,12 +249,16 @@ mod tests {
             "func foo():\n\treturn 2 + 2\nfunc bar():\n\tself.foo()\n",
         );
 
-        let new_program = program.extract_variable((4, 2), (4, 8), "x").0;
+        let (new_program, ranges) = program.extract_variable((4, 2), (4, 8), "x");
 
         assert_program_prints_to(
             new_program,
             "func foo():\n\treturn 2 + 2\nfunc bar():\n\tvar x = self.foo()\n\tx\n",
         );
+        assert_eq!(
+            ranges,
+            vec![(3, 5)..(3, 6), (4, 1)..(4, 2)]
+        )
     }
 
     #[test]
@@ -263,39 +267,56 @@ mod tests {
             "func foo():\n\treturn 2 + 2\nfunc bar():\n\tself.foo()\n",
         );
 
-        let new_program = program.extract_variable((4, 2), (4, 4), "x").0;
+        let (new_program, ranges) = program.extract_variable((4, 2), (4, 4), "x");
 
         assert_program_prints_to(
             new_program,
             "func foo():\n\treturn 2 + 2\nfunc bar():\n\tvar x = self\n\tx.foo()\n",
         );
+
+        assert_eq!(
+            ranges,
+            vec![(3, 5)..(3, 6), (4, 1)..(4, 2)]
+        )
     }
 
     #[test]
     fn test_program_extract_variable_that_is_being_returned() {
         let program = GDScriptParser::parse_to_program("func foo():\n\treturn 2 + 2\n");
 
-        let new_program = program.extract_variable((2, 9), (2, 12), "x").0;
+        let (new_program, ranges) = program.extract_variable((2, 9), (2, 12), "x");
 
         assert_program_prints_to(new_program, "func foo():\n\tvar x = 2 + 2\n\treturn x\n");
+        assert_eq!(
+            ranges,
+            vec![(1, 5)..(1, 6), (2, 8)..(2, 9)]
+        )
     }
 
     #[test]
     fn test_extract_variable_first_binary_operation_within_parentheses() {
         let program = GDScriptParser::parse_to_program("func foo():\n\t(2 + 3) + 4\n");
 
-        let new_program = program.extract_variable((2, 3), (2, 6), "x").0;
+        let (new_program, ranges) = program.extract_variable((2, 3), (2, 6), "x");
 
         assert_program_prints_to(new_program, "func foo():\n\tvar x = 2 + 3\n\tx + 4\n");
+        assert_eq!(
+            ranges,
+            vec![(1, 5)..(1, 6), (2, 1)..(2, 2)]
+        )
     }
 
     #[test]
     fn test_extract_variable_when_first_member_of_binary_operation_is_message_send() {
         let program = GDScriptParser::parse_to_program("func foo():\n\tself.bar() + 4\n");
 
-        let new_program = program.extract_variable((2, 2), (2, 11), "x").0;
+        let (new_program, ranges) = program.extract_variable((2, 2), (2, 11), "x");
 
         assert_program_prints_to(new_program, "func foo():\n\tvar x = self.bar()\n\tx + 4\n");
+        assert_eq!(
+            ranges,
+            vec![(1, 5)..(1, 6), (2, 1)..(2, 2)]
+        )
     }
 
     #[test]
@@ -311,9 +332,13 @@ mod tests {
     fn test_program_extract_variable_that_is_a_subexpression_of_what_is_being_returned() {
         let program = GDScriptParser::parse_to_program("func foo():\n\treturn 2 + 2\n");
 
-        let new_program = program.extract_variable((2, 9), (2, 9), "x").0;
+        let (new_program, ranges) = program.extract_variable((2, 9), (2, 9), "x");
 
         assert_program_prints_to(new_program, "func foo():\n\tvar x = 2\n\treturn x + 2\n");
+        assert_eq!(
+            ranges,
+            vec![(1, 5)..(1, 6), (2, 8)..(2, 9)]
+        )
     }
 
     #[test]
@@ -345,12 +370,16 @@ mod tests {
     fn test_program_extract_variable_when_returning_the_addition_of_an_int_and_a_message_send() {
         let program = GDScriptParser::parse_to_program("func foo():\n\treturn 2 + self.bar()\n");
 
-        let new_program = program.extract_variable((2, 9), (2, 9), "dos").0;
+        let (new_program, ranges) = program.extract_variable((2, 9), (2, 9), "dos");
 
         assert_program_prints_to(
             new_program,
             "func foo():\n\tvar dos = 2\n\treturn dos + self.bar()\n",
         );
+        assert_eq!(
+            ranges,
+            vec![(1, 5)..(1, 8), (2, 8)..(2, 11)]
+        )
     }
 
     #[test]
@@ -373,33 +402,45 @@ mod tests {
     fn test_program_extract_variable_inside_a_var_declaration() {
         let program = GDScriptParser::parse_to_program("func foo():\n\tvar x = 2\n\treturn x\n");
 
-        let new_program = program.extract_variable((2, 10), (2, 10), "y").0;
+        let (new_program, ranges) = program.extract_variable((2, 10), (2, 10), "y");
 
         assert_program_prints_to(
             new_program,
             "func foo():\n\tvar y = 2\n\tvar x = y\n\treturn x\n",
         );
+        assert_eq!(
+            ranges,
+            vec![(1, 5)..(1, 6), (2, 9)..(2, 10)]
+        )
     }
 
     #[test]
     fn test_program_extract_variable_extract_subexpression_of_subexpression() {
         let program = GDScriptParser::parse_to_program("func foo():\n\treturn 2 + self.bar()\n");
 
-        let new_program = program.extract_variable((2, 13), (2, 16), "x").0;
+        let (new_program, ranges) = program.extract_variable((2, 13), (2, 16), "x");
 
         assert_program_prints_to(
             new_program,
             "func foo():\n\tvar x = self\n\treturn 2 + x.bar()\n",
         );
+        assert_eq!(
+            ranges,
+            vec![(1, 5)..(1, 6), (2, 12)..(2, 13)]
+        )
     }
 
     #[test]
     fn test_program_extract_variable_when_the_statement_is_at_the_end_of_the_function() {
         let program = GDScriptParser::parse_to_program("func foo():\n\t2+2\n\t3+5");
 
-        let new_program = program.extract_variable((3, 2), (3, 4), "y").0;
+        let (new_program, ranges) = program.extract_variable((3, 2), (3, 4), "y");
 
         assert_program_prints_to(new_program, "func foo():\n\t2 + 2\n\tvar y = 3 + 5\n\ty\n");
+        assert_eq!(
+            ranges,
+            vec![(2, 5)..(2, 6), (3, 1)..(3, 2)]
+        )
     }
 
     #[test]
@@ -430,7 +471,7 @@ mod tests {
     fn test_program_extract_variable_lets_me_extract_a_subexpression() {
         let program = GDScriptParser::parse_to_program("func foo():\n\t2+3\n");
 
-        let new_program = program.extract_variable((2, 2), (2, 2), "y").0;
+        let (new_program, ranges) = program.extract_variable((2, 2), (2, 2), "y");
 
         assert_program_prints_to(
             new_program,
@@ -440,6 +481,10 @@ func foo():
 \ty + 3
 ",
         );
+        assert_eq!(
+            ranges,
+            vec![(1, 5)..(1, 6), (2, 1)..(2, 2)]
+        )
     }
 
     #[test]
@@ -447,7 +492,7 @@ func foo():
     ) {
         let program = GDScriptParser::parse_to_program("func foo():\n\t2+3\n");
 
-        let new_program = program.extract_variable((2, 4), (2, 4), "y").0;
+        let (new_program, ranges) = program.extract_variable((2, 4), (2, 4), "y");
 
         assert_program_prints_to(
             new_program,
@@ -457,6 +502,10 @@ func foo():
 \t2 + y
 ",
         );
+        assert_eq!(
+            ranges,
+            vec![(1, 5)..(1, 6), (2, 3)..(2, 4)]
+        )
     }
 
     #[test]

@@ -281,15 +281,13 @@ impl<'a> Program {
         end_line_column: (usize, usize),
         variable_name: &'a str,
     ) -> (Program, Vec<Range<LineCol>>) {
-        static mut POS_START_VARIABLE_USAGE: LineCol = (0, 0);
         let selected_range = start_line_column..end_line_column;
         let (declaration_idx, _declaration) =
             match self.find_function_declaration_by_selection_range(&selected_range) {
                 Some(result) => result,
                 None => return (self.clone(), vec![]),
             };
-        let this = &self;
-        let f = move |declaration: &Declaration| -> Declaration {
+        let f = move |declaration: &Declaration| -> (Declaration, LineCol) {
             match declaration.clone().kind {
                 DeclarationKind::Function {
                     name: function_name,
@@ -301,14 +299,14 @@ impl<'a> Program {
                         .iter()
                         .position(|statement| statement.contains_range(&selected_range));
                     if maybe_statement_idx.is_none() {
-                        return declaration.clone();
+                        return (declaration.clone(), (0, 0));
                     }
                     let statement_idx = maybe_statement_idx.unwrap();
 
                     let variable_usage =
                         Expression::new(None, ExpressionKind::Unknown(variable_name.to_owned()));
                     let old_statement = statements.get(statement_idx).unwrap().clone();
-                    let (old_expr, new_statement) = match old_statement.clone().kind {
+                    let (old_expr, new_statement) = match old_statement.kind {
                         StatementKind::VarDeclaration(var_name, expression) => {
                             match &expression
                                 .replace_expression_by_selection(selected_range, variable_usage)
@@ -318,7 +316,7 @@ impl<'a> Program {
                                     StatementKind::VarDeclaration(var_name, new.clone())
                                         .to_statement(None),
                                 ),
-                                None => return declaration.clone(),
+                                None => return (declaration.clone(), (0, 0)),
                             }
                         }
                         StatementKind::Expression(expression) => {
@@ -343,7 +341,7 @@ impl<'a> Program {
                                 StatementKind::Return(Some(new_expr)).to_statement(None),
                             )
                         }
-                        _ => return declaration.clone(),
+                        _ => return (declaration.clone(), (0, 0)),
                     };
 
                     fn expression_replacement<'a>(
@@ -408,48 +406,48 @@ impl<'a> Program {
                                 (old_expr, Expression::new(None, kind))
                             }
                         };
-                        unsafe { POS_START_VARIABLE_USAGE = old_expr.line_col_range().start };
                         (old_expr, new_expr)
                     }
 
                     let mut new_statements = statements.clone();
                     new_statements.replace_mut(statement_idx, move |_| new_statement.clone());
                     let new_statement =
-                        StatementKind::VarDeclaration(variable_name.into(), old_expr);
+                        StatementKind::VarDeclaration(variable_name.into(), old_expr.clone());
                     new_statements.insert(statement_idx, new_statement.to_statement(None));
 
-                    DeclarationKind::Function {
+                    let new_declaration = DeclarationKind::Function {
                         name: function_name,
                         return_type: function_type,
                         parameters: params,
                         statements: new_statements,
                     }
-                    .to_declaration(None)
+                    .to_declaration(None);
+                    (new_declaration, old_expr.line_col_range().start)
                 }
-                _ => panic!(),
+                _ => unreachable!(),
             }
         };
-        let new_declarations = {
-            let this = &this.declarations;
+        let (new_declarations, variable_usage_range) = {
+            let this = &self.declarations;
             let mut new_vector = this.clone();
             match this.get(declaration_idx) {
                 Some(old_value) => {
-                    let new_value = f(old_value);
+                    let (new_value, variable_usage_range) = f(old_value);
                     new_vector.push(new_value);
                     new_vector.swap_remove(declaration_idx);
-                    new_vector
+                    (new_vector, variable_usage_range)
                 }
                 None => panic!("Index out of bounds"),
             }
         };
-        let new_program = this.with_declarations(new_declarations);
+        let new_program = (&self).with_declarations(new_declarations);
 
         if self.without_pairs() == new_program.without_pairs() {
             return (new_program, vec![]);
         };
 
         let (start_line_variable_usage, start_column_variable_usage) =
-            unsafe { POS_START_VARIABLE_USAGE };
+            variable_usage_range;
 
         let start_column = "\tvar ".len();
         let range_where_declaration_happens = (start_line_variable_usage - 1, start_column)
