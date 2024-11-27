@@ -118,6 +118,41 @@ func extract_variable():
 	code_edit.text = new_text
 	select_ranges(selection)
 
+func _evaluation_result_as_text(node, code_to_evaluate: String):
+	var expression := Expression.new()
+	var error = expression.parse(code_to_evaluate)
+	if error != OK:
+		print(expression.get_error_text())
+		return
+	var result = expression.execute([], node)
+	if expression.has_execute_failed():
+		print(expression.get_error_text())
+		return
+	var new_text: String
+	if result is String:
+		new_text = "\"%s\"" % result
+	else:
+		new_text = str(result)
+	return new_text
+
+func evaluate_in_place():
+	var code_edit = _code_edit()
+	var text = code_edit.get_selected_text()
+	var current_node = EditorInterface.get_selection().get_selected_nodes().front()
+	var result = _evaluation_result_as_text(current_node, text)
+	if result:
+		code_edit.insert_text_at_caret(result)
+
+func evaluate_and_print():
+	var code_edit = _code_edit()
+	var end_line = code_edit.get_selection_to_line()
+	var end_column = code_edit.get_line(end_line).length()
+	var text = code_edit.get_selected_text()
+	var current_node = EditorInterface.get_selection().get_selected_nodes().front()
+	var result = _evaluation_result_as_text(current_node, text)
+	if result:
+		code_edit.insert_text(" # " + str(result), end_line, end_column)
+
 func inline_variable():
 	var code_edit = _code_edit()
 	var previous_column = code_edit.get_caret_column()

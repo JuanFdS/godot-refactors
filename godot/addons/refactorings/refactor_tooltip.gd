@@ -31,7 +31,14 @@ func _ready():
 		queue_free()
 		refactorings.inline_variable()
 	)
-
+	%Evaluate.pressed.connect(func():
+		queue_free()
+		refactorings.evaluate_in_place()
+	)
+	%Print.pressed.connect(func():
+		queue_free()
+		refactorings.evaluate_and_print()
+	)
 
 func appear(a_code_edit: CodeEdit):
 	visible = true
