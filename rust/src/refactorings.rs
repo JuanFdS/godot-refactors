@@ -306,119 +306,25 @@ impl<'a> Program {
                     let variable_usage =
                         Expression::new(None, ExpressionKind::Unknown(variable_name.to_owned()));
                     let old_statement = statements.get(statement_idx).unwrap().clone();
-                    let (old_expr, new_statement) = match old_statement.kind {
-                        StatementKind::VarDeclaration(var_name, expression) => {
-                            match expression
-                                .replace_expression_by_selection(selected_range, variable_usage)
-                            {
-                                Some(ExpressionReplacement { old, new, .. }) => (
-                                    old.clone(),
-                                    StatementKind::VarDeclaration(var_name, new.clone())
-                                        .to_statement(None),
-                                ),
-                                None => return (declaration.clone(), (0, 0)),
-                            }
-                        }
-                        StatementKind::Expression(expression) => {
-                            if let Some(ExpressionReplacement { old, new, .. }) = expression.replace_expression_by_selection(selected_range.clone(), variable_usage) {
-                                (old, StatementKind::Expression(new).to_statement(None))
-                            } else {
-                                return (declaration.clone(), (0, 0))
-                            }
-                        }
-                        StatementKind::Return(Some(expression)) => {
-                            let (old_expr, new_expr) = expression_replacement(
-                                expression.clone(),
-                                variable_usage,
-                                selected_range.clone(),
-                            );
-                            (
-                                old_expr,
-                                StatementKind::Return(Some(new_expr)).to_statement(None),
-                            )
-                        }
-                        _ => return (declaration.clone(), (0, 0)),
-                    };
 
-                    fn expression_replacement<'a>(
-                        expression: Expression,
-                        variable_usage: Expression,
-                        text_range: Range<(usize, usize)>,
-                    ) -> (Expression, Expression) {
-                        let (old_expr, new_expr) = match &expression.kind {
-                            ExpressionKind::LiteralInt(_)
-                            | ExpressionKind::Unknown(_)
-                            | ExpressionKind::LiteralSelf
-                            | ExpressionKind::VariableUsage(_) => {
-                                (expression.clone(), variable_usage.clone())
-                            }
-                            ExpressionKind::BinaryOperation(expression1, op, expression2) => {
-                                let old_expr: Expression;
-                                let kind: ExpressionKind;
-                                if expression1.contains_range(&text_range) {
-                                    let (inner_old_expr, inner_kind) = expression_replacement(
-                                        *expression1.clone(),
-                                        variable_usage.clone(),
-                                        text_range,
-                                    );
-                                    old_expr = inner_old_expr;
-                                    kind = ExpressionKind::BinaryOperation(
-                                        Box::new(inner_kind),
-                                        op.into(),
-                                        expression2.clone(),
-                                    )
-                                } else if expression2.contains_range(&text_range) {
-                                    let (inner_old_expr, inner_kind) = expression_replacement(
-                                        *expression2.clone(),
-                                        variable_usage.clone(),
-                                        text_range,
-                                    );
-                                    old_expr = inner_old_expr;
-                                    kind = ExpressionKind::BinaryOperation(
-                                        expression1.clone(),
-                                        op.into(),
-                                        Box::new(inner_kind),
-                                    )
-                                } else {
-                                    old_expr = expression.clone();
-                                    kind = variable_usage.clone().kind;
-                                }
-                                (old_expr, Expression::new(None, kind))
-                            }
-                            ExpressionKind::MessageSend(receiver, method_name, arguments) => {
-                                let old_expr: Expression;
-                                let kind: ExpressionKind;
-                                if receiver.contains_range(&text_range) {
-                                    old_expr = *receiver.clone();
-                                    kind = ExpressionKind::MessageSend(
-                                        Box::new(variable_usage.clone()),
-                                        method_name.into(),
-                                        arguments.to_vec(),
-                                    )
-                                } else {
-                                    old_expr = expression.clone();
-                                    kind = variable_usage.clone().kind;
-                                }
-                                (old_expr, Expression::new(None, kind))
-                            }
-                        };
-                        (old_expr, new_expr)
+                    if let Some((old_expr, new_statement)) = old_statement.replace_expression_by_selection(selected_range, variable_usage) {
+                        let mut new_statements = statements.clone();
+                        new_statements.replace_mut(statement_idx, move |_| new_statement.clone());
+                        let new_statement =
+                            StatementKind::VarDeclaration(variable_name.into(), old_expr.clone());
+                        new_statements.insert(statement_idx, new_statement.to_statement(None));
+
+                        let new_declaration = DeclarationKind::Function {
+                            name: function_name,
+                            return_type: function_type,
+                            parameters: params,
+                            statements: new_statements,
+                        }
+                            .to_declaration(None);
+                        (new_declaration, old_expr.line_col_range().start)
+                    } else {
+                        return (declaration.clone(), (0, 0))
                     }
-
-                    let mut new_statements = statements.clone();
-                    new_statements.replace_mut(statement_idx, move |_| new_statement.clone());
-                    let new_statement =
-                        StatementKind::VarDeclaration(variable_name.into(), old_expr.clone());
-                    new_statements.insert(statement_idx, new_statement.to_statement(None));
-
-                    let new_declaration = DeclarationKind::Function {
-                        name: function_name,
-                        return_type: function_type,
-                        parameters: params,
-                        statements: new_statements,
-                    }
-                    .to_declaration(None);
-                    (new_declaration, old_expr.line_col_range().start)
                 }
                 _ => unreachable!(),
             }
@@ -712,6 +618,31 @@ impl<'a> Statement {
     pub fn without_pairs(&self) -> Statement {
         Statement::new(None, self.kind.without_pairs())
     }
+
+    pub fn replace_expression_by_selection(self, selected_range: Range<(usize, usize)>, new_expression: AstNode<ExpressionKind>) -> Option<(Expression, Statement)> {
+        match self.kind {
+            StatementKind::VarDeclaration(var_name, expression) => {
+                expression.replace_expression_by_selection(selected_range.clone(), new_expression)
+                    .map(|ExpressionReplacement { old, new, .. }| {
+                        (old, StatementKind::VarDeclaration(var_name, new).to_statement(None))
+                    })
+            }
+            StatementKind::Expression(expression) => {
+                expression.replace_expression_by_selection(selected_range.clone(), new_expression)
+                    .map(|ExpressionReplacement { old, new, .. }| {
+                        (old, StatementKind::Expression(new).to_statement(None))
+                    })
+            }
+            StatementKind::Return(Some(expression)) => {
+                expression.replace_expression_by_selection(selected_range.clone(), new_expression)
+                    .map(|ExpressionReplacement { old, new, .. }| {
+                        (old, StatementKind::Return(Some(new)).to_statement(None))
+                    })
+            }
+            _ => None,
+        }
+    }
+
 }
 
 impl StatementKind {
