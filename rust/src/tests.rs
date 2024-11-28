@@ -182,7 +182,7 @@ mod tests {
           "\tcoso"
         };
         assert_program_prints_to(new_program, expected);
-        assert_eq!(lines_to_select, vec![(1,5) .. (1,9), (2,1) .. (2,5)]);
+        assert_eq!(lines_to_select, vec![(1, 5)..(1, 9), (2, 1)..(2, 5)]);
     }
 
     #[test]
@@ -255,10 +255,7 @@ mod tests {
             new_program,
             "func foo():\n\treturn 2 + 2\nfunc bar():\n\tvar x = self.foo()\n\tx\n",
         );
-        assert_eq!(
-            ranges,
-            vec![(3, 5)..(3, 6), (4, 1)..(4, 2)]
-        )
+        assert_eq!(ranges, vec![(3, 5)..(3, 6), (4, 1)..(4, 2)])
     }
 
     #[test]
@@ -274,10 +271,7 @@ mod tests {
             "func foo():\n\treturn 2 + 2\nfunc bar():\n\tvar x = self\n\tx.foo()\n",
         );
 
-        assert_eq!(
-            ranges,
-            vec![(3, 5)..(3, 6), (4, 1)..(4, 2)]
-        )
+        assert_eq!(ranges, vec![(3, 5)..(3, 6), (4, 1)..(4, 2)])
     }
 
     #[test]
@@ -287,45 +281,63 @@ mod tests {
         let (new_program, ranges) = program.extract_variable((2, 9), (2, 12), "x");
 
         assert_program_prints_to(new_program, "func foo():\n\tvar x = 2 + 2\n\treturn x\n");
-        assert_eq!(
-            ranges,
-            vec![(1, 5)..(1, 6), (2, 8)..(2, 9)]
-        )
+        assert_eq!(ranges, vec![(1, 5)..(1, 6), (2, 8)..(2, 9)])
     }
 
     #[test]
     fn test_extract_variable_first_binary_operation_within_parentheses() {
-        let program = GDScriptParser::parse_to_program("func foo():\n\t(2 + 3) + 4\n");
+        let input = text_block_fnl! {
+          "func foo():"
+          "\t(2 + 3) + 4"
+        };
+        let program = GDScriptParser::parse_to_program(input);
 
         let (new_program, ranges) = program.extract_variable((2, 3), (2, 6), "x");
 
-        assert_program_prints_to(new_program, "func foo():\n\tvar x = 2 + 3\n\tx + 4\n");
-        assert_eq!(
-            ranges,
-            vec![(1, 5)..(1, 6), (2, 1)..(2, 2)]
-        )
+        let expected = text_block_fnl! {
+          "func foo():"
+          "\tvar x = 2 + 3"
+          "\tx + 4"
+        };
+        assert_program_prints_to(new_program, expected);
+        assert_eq!(ranges, vec![(1, 5)..(1, 6), (2, 1)..(2, 2)])
     }
 
     #[test]
     fn test_extract_variable_when_first_member_of_binary_operation_is_message_send() {
-        let program = GDScriptParser::parse_to_program("func foo():\n\tself.bar() + 4\n");
+        let program = GDScriptParser::parse_to_program(
+            text_block_fnl! {
+                "func foo():"
+                "\tself.bar() + 4"
+            });
 
         let (new_program, ranges) = program.extract_variable((2, 2), (2, 11), "x");
 
-        assert_program_prints_to(new_program, "func foo():\n\tvar x = self.bar()\n\tx + 4\n");
-        assert_eq!(
-            ranges,
-            vec![(1, 5)..(1, 6), (2, 1)..(2, 2)]
-        )
+        assert_program_prints_to(new_program, text_block_fnl! {
+            "func foo():"
+            "\tvar x = self.bar()"
+            "\tx + 4"
+        });
+        assert_eq!(ranges, vec![(1, 5)..(1, 6), (2, 1)..(2, 2)])
     }
 
     #[test]
     fn test_inline_variable_into_first_member_of_binary_operation() {
-        let program = GDScriptParser::parse_to_program("func foo():\n\tvar x = 4\n\tx + 2\n");
+        let input = text_block_fnl! {
+            "func foo():"
+            "\tvar x = 4"
+            "\tx + 2"
+        };
+
+        let program = GDScriptParser::parse_to_program(input);
 
         let new_program = program.inline_variable((2, 6), (2, 6)).0;
 
-        assert_program_prints_to(new_program, "func foo():\n\t4 + 2\n");
+        let expected = text_block_fnl! {
+          "func foo():"
+          "\t4 + 2"
+        };
+        assert_program_prints_to(new_program, expected);
     }
 
     #[test]
@@ -335,10 +347,7 @@ mod tests {
         let (new_program, ranges) = program.extract_variable((2, 9), (2, 9), "x");
 
         assert_program_prints_to(new_program, "func foo():\n\tvar x = 2\n\treturn x + 2\n");
-        assert_eq!(
-            ranges,
-            vec![(1, 5)..(1, 6), (2, 8)..(2, 9)]
-        )
+        assert_eq!(ranges, vec![(1, 5)..(1, 6), (2, 8)..(2, 9)])
     }
 
     #[test]
@@ -376,10 +385,7 @@ mod tests {
             new_program,
             "func foo():\n\tvar dos = 2\n\treturn dos + self.bar()\n",
         );
-        assert_eq!(
-            ranges,
-            vec![(1, 5)..(1, 8), (2, 8)..(2, 11)]
-        )
+        assert_eq!(ranges, vec![(1, 5)..(1, 8), (2, 8)..(2, 11)])
     }
 
     #[test]
@@ -408,10 +414,7 @@ mod tests {
             new_program,
             "func foo():\n\tvar y = 2\n\tvar x = y\n\treturn x\n",
         );
-        assert_eq!(
-            ranges,
-            vec![(1, 5)..(1, 6), (2, 9)..(2, 10)]
-        )
+        assert_eq!(ranges, vec![(1, 5)..(1, 6), (2, 9)..(2, 10)])
     }
 
     #[test]
@@ -424,10 +427,7 @@ mod tests {
             new_program,
             "func foo():\n\tvar x = self\n\treturn 2 + x.bar()\n",
         );
-        assert_eq!(
-            ranges,
-            vec![(1, 5)..(1, 6), (2, 12)..(2, 13)]
-        )
+        assert_eq!(ranges, vec![(1, 5)..(1, 6), (2, 12)..(2, 13)])
     }
 
     #[test]
@@ -437,10 +437,7 @@ mod tests {
         let (new_program, ranges) = program.extract_variable((3, 2), (3, 4), "y");
 
         assert_program_prints_to(new_program, "func foo():\n\t2 + 2\n\tvar y = 3 + 5\n\ty\n");
-        assert_eq!(
-            ranges,
-            vec![(2, 5)..(2, 6), (3, 1)..(3, 2)]
-        )
+        assert_eq!(ranges, vec![(2, 5)..(2, 6), (3, 1)..(3, 2)])
     }
 
     #[test]
@@ -481,10 +478,7 @@ func foo():
 \ty + 3
 ",
         );
-        assert_eq!(
-            ranges,
-            vec![(1, 5)..(1, 6), (2, 1)..(2, 2)]
-        )
+        assert_eq!(ranges, vec![(1, 5)..(1, 6), (2, 1)..(2, 2)])
     }
 
     #[test]
@@ -502,10 +496,7 @@ func foo():
 \t2 + y
 ",
         );
-        assert_eq!(
-            ranges,
-            vec![(1, 5)..(1, 6), (2, 3)..(2, 4)]
-        )
+        assert_eq!(ranges, vec![(1, 5)..(1, 6), (2, 3)..(2, 4)])
     }
 
     #[test]

@@ -17,7 +17,7 @@ impl<T: Clone> Replace<T> for Vec<T> {
             Some(element) => {
                 let new_element = f(&element);
                 self.push(new_element);
-                return self.swap_remove(index);
+                self.swap_remove(index)
             }
         }
     }
@@ -308,7 +308,7 @@ impl<'a> Program {
                     let old_statement = statements.get(statement_idx).unwrap().clone();
                     let (old_expr, new_statement) = match old_statement.kind {
                         StatementKind::VarDeclaration(var_name, expression) => {
-                            match &expression
+                            match expression
                                 .replace_expression_by_selection(selected_range, variable_usage)
                             {
                                 Some(ExpressionReplacement { old, new, .. }) => (
@@ -320,15 +320,11 @@ impl<'a> Program {
                             }
                         }
                         StatementKind::Expression(expression) => {
-                            let (old_expr, new_expr) = expression_replacement(
-                                expression.clone(),
-                                variable_usage,
-                                selected_range.clone(),
-                            );
-                            (
-                                old_expr,
-                                StatementKind::Expression(new_expr).to_statement(None),
-                            )
+                            if let Some(ExpressionReplacement { old, new, .. }) = expression.replace_expression_by_selection(selected_range.clone(), variable_usage) {
+                                (old, StatementKind::Expression(new).to_statement(None))
+                            } else {
+                                return (declaration.clone(), (0, 0))
+                            }
                         }
                         StatementKind::Return(Some(expression)) => {
                             let (old_expr, new_expr) = expression_replacement(
@@ -798,7 +794,9 @@ impl<'a> Expression {
                     );
                     range_of_new_expression = replacement.range_of_new_expression;
                 } else {
-                    return None;
+                    old = self.clone();
+                    kind = expression_to_add.kind;
+                    range_of_new_expression = self.line_col_range();
                 }
                 Some(ExpressionReplacement {
                     old: old.clone(),
@@ -809,24 +807,28 @@ impl<'a> Expression {
             ExpressionKind::MessageSend(receiver, method_name, arguments) => {
                 let old: Expression;
                 let kind: ExpressionKind;
+                let range_of_new_expression: SelectionRange;
                 if receiver.contains_range(&selection_to_remove) {
                     old = *receiver.clone();
                     kind = ExpressionKind::MessageSend(
                         Box::new(expression_to_add.clone()),
                         method_name.into(),
                         arguments.to_vec(),
-                    )
+                    );
+                    range_of_new_expression = {
+                        let (start_line, start_col) = old.line_col();
+                        (start_line, start_col)
+                            ..(start_line, start_col + expression_to_add.to_string().len())
+                    };
                 } else {
-                    return None;
+                    old = self.clone();
+                    kind = expression_to_add.clone().kind;
+                    range_of_new_expression = self.line_col_range();
                 }
                 Some(ExpressionReplacement {
                     old: old.clone(),
                     new: Expression::new(None, kind),
-                    range_of_new_expression: {
-                        let (start_line, start_col) = old.line_col();
-                        (start_line, start_col)
-                            ..(start_line, start_col + expression_to_add.to_string().len())
-                    },
+                    range_of_new_expression
                 })
             }
         }
