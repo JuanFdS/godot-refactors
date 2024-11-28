@@ -305,19 +305,21 @@ mod tests {
 
     #[test]
     fn test_extract_variable_when_first_member_of_binary_operation_is_message_send() {
-        let program = GDScriptParser::parse_to_program(
-            text_block_fnl! {
-                "func foo():"
-                "\tself.bar() + 4"
-            });
+        let program = GDScriptParser::parse_to_program(text_block_fnl! {
+            "func foo():"
+            "\tself.bar() + 4"
+        });
 
         let (new_program, ranges) = program.extract_variable((2, 2), (2, 11), "x");
 
-        assert_program_prints_to(new_program, text_block_fnl! {
-            "func foo():"
-            "\tvar x = self.bar()"
-            "\tx + 4"
-        });
+        assert_program_prints_to(
+            new_program,
+            text_block_fnl! {
+                "func foo():"
+                "\tvar x = self.bar()"
+                "\tx + 4"
+            },
+        );
         assert_eq!(ranges, vec![(1, 5)..(1, 6), (2, 1)..(2, 2)])
     }
 
