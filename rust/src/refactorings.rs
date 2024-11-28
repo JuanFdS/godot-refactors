@@ -363,8 +363,9 @@ impl<'a> Program {
             }
             .to_declaration(None);
 
+            let replaced_expression_position = old_expr.line_col_range().start;
             let (start_line_variable_usage, start_column_variable_usage) =
-                old_expr.line_col_range().start;
+                (replaced_expression_position.0 + 1, replaced_expression_position.1);
 
             let start_column = "\tvar ".len();
             let range_where_declaration_happens = (start_line_variable_usage - 1, start_column)
@@ -374,10 +375,10 @@ impl<'a> Program {
                 );
 
             let range_where_variable_usage_happens =
-                (start_line_variable_usage, start_column_variable_usage - 1)
+                (start_line_variable_usage, start_column_variable_usage)
                     ..(
                         start_line_variable_usage,
-                        start_column_variable_usage - 1 + variable_name.len(),
+                        start_column_variable_usage + variable_name.len(),
                     );
 
             Some((
@@ -458,7 +459,7 @@ impl<'a> Program {
         match maybe_idx {
             Some(idx) => {
                 let mut updated_declarations = self.declarations.clone();
-                updated_declarations.swap(idx, idx - 1);
+                updated_declarations.swap(idx, idx);
                 self.with_declarations(updated_declarations)
             }
             None => self.clone(),

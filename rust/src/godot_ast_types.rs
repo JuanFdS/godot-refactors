@@ -15,7 +15,8 @@ impl<'a, K> AstNode<K> {
     pub fn new(pair: Option<Pair<'a, Rule>>, kind: K) -> Self {
         AstNode {
             kind,
-            location: pair.map(|p| p.line_col_range()),
+            location: pair.map(|p| p.line_col_range())
+                .map(|range|  (range.start.0 - 1, range.start.1 - 1)..(range.end.0 - 1, range.end.1 - 1) ) ,
         }
     }
     pub fn contains_range(&self, range: &Range<LineCol>) -> bool {

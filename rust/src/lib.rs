@@ -46,8 +46,8 @@ impl MiParser {
         let program = GDScriptParser::parse_to_program(input.as_str());
 
         let (new_program, selection) = program.inline_variable(
-            (start_line as usize + 1, start_column as usize + 1),
-            (end_line as usize + 1, end_column as usize + 1),
+            (start_line as usize, start_column as usize),
+            (end_line as usize, end_column as usize),
         );
         let selection_as_godot: Vec<VariantArray> = selection
             .iter()
@@ -73,8 +73,8 @@ impl MiParser {
         let program = GDScriptParser::parse_to_program(input.as_str());
 
         let (new_program, selection) = program.extract_variable(
-            (start_line as usize + 1, start_column as usize + 1),
-            (end_line as usize + 1, end_column as usize + 1),
+            (start_line as usize, start_column as usize),
+            (end_line as usize, end_column as usize),
             variable_name.as_str(),
         );
         let selection_as_godot: Vec<VariantArray> = selection
@@ -144,7 +144,7 @@ impl MiParser {
     }
 
     fn godot_to_pest_line(linea: i32) -> usize {
-        (linea + 1).try_into().unwrap()
+        (linea).try_into().unwrap()
     }
 
     #[func]
