@@ -281,19 +281,32 @@ impl<'a> Program {
                 Some(result) => result,
                 None => return (self.clone(), vec![]),
             };
-        let (new_declarations, variable_usage_range) = {
+        let (new_declarations, range_where_declaration_happens, range_where_variable_usage_happens) = {
             let declarations = &self.declarations;
             let mut new_declarations = declarations.clone();
             match declarations.get(declaration_idx) {
                 Some(old_value) => {
-                    let (new_value, variable_usage_range) = Self::extract_variable_in_declaration(
+                    let (
+                        new_value,
+                        range_where_declaration_happens,
+                        range_where_variable_usage_happens,
+                    ) = Self::extract_variable_in_declaration(
                         old_value,
                         variable_name,
                         &selected_range,
-                    ).unwrap_or((old_value.clone(), (0, 0)));
+                    )
+                    .unwrap_or((
+                        old_value.clone(),
+                        (0, 0)..(0, 0),
+                        (0, 0)..(0, 0),
+                    ));
                     new_declarations.push(new_value);
                     new_declarations.swap_remove(declaration_idx);
-                    (new_declarations, variable_usage_range)
+                    (
+                        new_declarations,
+                        range_where_declaration_happens,
+                        range_where_variable_usage_happens,
+                    )
                 }
                 None => panic!("Index out of bounds"),
             }
@@ -303,22 +316,6 @@ impl<'a> Program {
         if self.without_pairs() == new_program.without_pairs() {
             return (new_program, vec![]);
         };
-
-        let (start_line_variable_usage, start_column_variable_usage) = variable_usage_range;
-
-        let start_column = "\tvar ".len();
-        let range_where_declaration_happens = (start_line_variable_usage - 1, start_column)
-            ..(
-                start_line_variable_usage - 1,
-                start_column + variable_name.len(),
-            );
-
-        let range_where_variable_usage_happens =
-            (start_line_variable_usage, start_column_variable_usage - 1)
-                ..(
-                    start_line_variable_usage,
-                    start_column_variable_usage - 1 + variable_name.len(),
-                );
 
         (
             new_program,
@@ -333,45 +330,61 @@ impl<'a> Program {
         declaration: &Declaration,
         variable_name: &str,
         selected_range: &SelectionRange,
-    ) -> Option<(Declaration, LineCol)> {
+    ) -> Option<(Declaration, SelectionRange, SelectionRange)> {
         if let DeclarationKind::Function {
             name: function_name,
             return_type: function_type,
             parameters: params,
             statements,
-        } = declaration.clone().kind {
-            let maybe_statement_idx = statements
+        } = declaration.clone().kind
+        {
+            let statement_idx = statements
                 .iter()
-                .position(|statement| statement.contains_range(&selected_range));
-            if maybe_statement_idx.is_none() {
-                return None;
-            }
-            let statement_idx = maybe_statement_idx.unwrap();
+                .position(|statement| statement.contains_range(&selected_range))?;
 
             let variable_usage =
                 Expression::new(None, ExpressionKind::Unknown(variable_name.to_owned()));
-            let old_statement = statements.get(statement_idx).unwrap().clone();
+            let old_statement = statements.get(statement_idx)?.clone();
 
-            if let Some((old_expr, new_statement)) = old_statement
-                .replace_expression_by_selection(selected_range.clone(), variable_usage)
-            {
-                let mut new_statements = statements.clone();
-                new_statements.replace_mut(statement_idx, move |_| new_statement.clone());
-                let new_statement =
-                    StatementKind::VarDeclaration(variable_name.into(), old_expr.clone());
-                new_statements.insert(statement_idx, new_statement.to_statement(None));
+            let (old_expr, new_statement) = old_statement
+                .replace_expression_by_selection(selected_range.clone(), variable_usage)?;
 
-                let new_declaration = DeclarationKind::Function {
-                    name: function_name,
-                    return_type: function_type,
-                    parameters: params,
-                    statements: new_statements,
-                }
-                    .to_declaration(None);
-                Some((new_declaration, old_expr.line_col_range().start))
-            } else {
-                None
+            let mut new_statements = statements.clone();
+            new_statements.replace_mut(statement_idx, move |_| new_statement.clone());
+            let new_statement =
+                StatementKind::VarDeclaration(variable_name.into(), old_expr.clone());
+            new_statements.insert(statement_idx, new_statement.to_statement(None));
+
+            let new_declaration = DeclarationKind::Function {
+                name: function_name,
+                return_type: function_type,
+                parameters: params,
+                statements: new_statements,
             }
+            .to_declaration(None);
+
+            let (start_line_variable_usage, start_column_variable_usage) =
+                old_expr.line_col_range().start;
+
+            let start_column = "\tvar ".len();
+            let range_where_declaration_happens = (start_line_variable_usage - 1, start_column)
+                ..(
+                    start_line_variable_usage - 1,
+                    start_column + variable_name.len(),
+                );
+
+            let range_where_variable_usage_happens =
+                (start_line_variable_usage, start_column_variable_usage - 1)
+                    ..(
+                        start_line_variable_usage,
+                        start_column_variable_usage - 1 + variable_name.len(),
+                    );
+
+            Some((
+                new_declaration,
+                range_where_declaration_happens,
+                range_where_variable_usage_happens,
+            ))
         } else {
             unreachable!()
         }
