@@ -33,13 +33,11 @@ text = "@tool_button"
 
 [node name="ExtractVariable" type="Button" parent="PanelContainer/HBoxContainer"]
 unique_name_in_owner = true
-visible = false
 layout_mode = 2
 text = "Extract Variable"
 
 [node name="InlineVariable" type="Button" parent="PanelContainer/HBoxContainer"]
 unique_name_in_owner = true
-visible = false
 layout_mode = 2
 text = "Inline Variable"
 
