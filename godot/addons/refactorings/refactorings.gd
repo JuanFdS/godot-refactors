@@ -129,7 +129,9 @@ func _evaluation_result_as_text(code_to_evaluate: String):
 	var selected_nodes = EditorInterface.get_selection().get_selected_nodes()
 	var current_script = EditorInterface.get_script_editor().get_current_script()
 	var context = null
-	if not selected_nodes.is_empty() and selected_nodes.front().get_script() == current_script:
+	if current_script.is_tool() \
+		and not selected_nodes.is_empty() \
+		and selected_nodes.front().get_script() == current_script:
 			context = selected_nodes.front()
 
 	var result = expression.execute([], context)
