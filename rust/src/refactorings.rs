@@ -104,77 +104,6 @@ impl<'a> Program {
         vec![]
     }
 
-    fn replace_variable_usage(
-        old_expression: Expression,
-        variable_name: String,
-        expression_to_inline: Expression,
-    ) -> Option<(Expression, Vec<Range<LineCol>>)> {
-        match old_expression.clone().kind {
-            ExpressionKind::Unknown(var_name) if var_name == variable_name => {
-                Some((expression_to_inline, vec![old_expression.line_col_range()]))
-            }
-            ExpressionKind::LiteralInt(_)
-            | ExpressionKind::Unknown(_)
-            | ExpressionKind::LiteralSelf => None,
-            ExpressionKind::BinaryOperation(expression1, op, expression2) => {
-                let maybe_replacement1 = Self::replace_variable_usage(
-                    *expression1.clone(),
-                    variable_name.clone(),
-                    expression_to_inline.clone(),
-                );
-                let maybe_replacement2 = Self::replace_variable_usage(
-                    *expression2.clone(),
-                    variable_name,
-                    expression_to_inline,
-                );
-                let mut lines_to_select = vec![];
-                let mut new_expression1: Expression = *expression1;
-                let mut new_expression2: Expression = *expression2;
-                if let Some((new_expr1, mut lines_to_select1)) = maybe_replacement1
-                {
-                    lines_to_select.append(&mut lines_to_select1);
-                    new_expression1 = new_expr1;
-                }
-                if let Some((new_expr2, mut lines_to_select2)) = maybe_replacement2
-                {
-                    lines_to_select.append(&mut lines_to_select2);
-                    new_expression2 = new_expr2;
-                }
-                let kind = ExpressionKind::BinaryOperation(
-                    Box::new(new_expression1),
-                    op,
-                    Box::new(new_expression2),
-                );
-                Some((Expression::new(None, kind), lines_to_select))
-            }
-            ExpressionKind::MessageSend(expression, message_name, vec) => {
-                let maybe_replacement = Self::replace_variable_usage(
-                    *expression.clone(),
-                    variable_name.clone(),
-                    expression_to_inline.clone(),
-                );
-                match maybe_replacement {
-                    Some((new_expr, lines_to_select)) => {
-                        let kind = ExpressionKind::MessageSend(
-                            Box::new(new_expr),
-                            message_name,
-                            vec,
-                        );
-                        Some((Expression::new(None, kind), lines_to_select))
-                    }
-
-                    None => None,
-                }
-            }
-            ExpressionKind::VariableUsage(var_name)
-                if var_name == variable_name =>
-            {
-                Some((expression_to_inline, vec![]))
-            }
-            ExpressionKind::VariableUsage(_) => None,
-        }
-    }
-
     pub fn inline_variable(
         &self,
         start_line_column: LineCol,
@@ -222,8 +151,7 @@ impl<'a> Program {
                         | StatementKind::Unknown(_)
                         | StatementKind::Return(None) => new_statements.push(statement.clone()),
                         StatementKind::VarDeclaration(var_name, expression) => {
-                            match Self::replace_variable_usage(
-                                expression,
+                            match expression.replace_variable_usage(
                                 variable_name.to_string(),
                                 expr_to_inline.clone(),
                             ) {
@@ -236,8 +164,7 @@ impl<'a> Program {
                                 None => new_statements.push(statement.clone()),
                             }
                         }
-                        StatementKind::Expression(expression) => match Self::replace_variable_usage(
-                            expression,
+                        StatementKind::Expression(expression) => match expression.replace_variable_usage(
                             variable_name.to_string(),
                             expr_to_inline.clone(),
                         ) {
@@ -245,8 +172,7 @@ impl<'a> Program {
                                 .push(Statement::new(None, StatementKind::Expression(new_expr))),
                             None => new_statements.push(statement.clone()),
                         },
-                        StatementKind::Return(Some(expression)) => match Self::replace_variable_usage(
-                            expression,
+                        StatementKind::Return(Some(expression)) => match expression.replace_variable_usage(
                             variable_name.to_string(),
                             expr_to_inline.clone(),
                         ) {
@@ -696,6 +622,74 @@ struct ExpressionReplacement {
 impl<'a> Expression {
     pub fn without_pairs(&self) -> Expression {
         Expression::new(None, self.kind.without_pairs())
+    }
+
+    pub fn replace_variable_usage(
+        &self,
+        variable_name: String,
+        expression_to_inline: Expression,
+    ) -> Option<(Expression, Vec<Range<LineCol>>)> {
+        match self.clone().kind {
+            ExpressionKind::Unknown(var_name) if var_name == variable_name => {
+                Some((expression_to_inline, vec![self.line_col_range()]))
+            }
+            ExpressionKind::LiteralInt(_)
+            | ExpressionKind::Unknown(_)
+            | ExpressionKind::LiteralSelf => None,
+            ExpressionKind::BinaryOperation(expression1, op, expression2) => {
+                let maybe_replacement1 = expression1.replace_variable_usage(
+                    variable_name.clone(),
+                    expression_to_inline.clone(),
+                );
+                let maybe_replacement2 = expression2.replace_variable_usage(
+                    variable_name,
+                    expression_to_inline,
+                );
+                let mut lines_to_select = vec![];
+                let mut new_expression1: Expression = *expression1;
+                let mut new_expression2: Expression = *expression2;
+                if let Some((new_expr1, mut lines_to_select1)) = maybe_replacement1
+                {
+                    lines_to_select.append(&mut lines_to_select1);
+                    new_expression1 = new_expr1;
+                }
+                if let Some((new_expr2, mut lines_to_select2)) = maybe_replacement2
+                {
+                    lines_to_select.append(&mut lines_to_select2);
+                    new_expression2 = new_expr2;
+                }
+                let kind = ExpressionKind::BinaryOperation(
+                    Box::new(new_expression1),
+                    op,
+                    Box::new(new_expression2),
+                );
+                Some((Expression::new(None, kind), lines_to_select))
+            }
+            ExpressionKind::MessageSend(expression, message_name, vec) => {
+                let maybe_replacement = expression.replace_variable_usage(
+                    variable_name.clone(),
+                    expression_to_inline.clone(),
+                );
+                match maybe_replacement {
+                    Some((new_expr, lines_to_select)) => {
+                        let kind = ExpressionKind::MessageSend(
+                            Box::new(new_expr),
+                            message_name,
+                            vec,
+                        );
+                        Some((Expression::new(None, kind), lines_to_select))
+                    }
+
+                    None => None,
+                }
+            }
+            ExpressionKind::VariableUsage(var_name)
+                if var_name == variable_name =>
+            {
+                Some((expression_to_inline, vec![]))
+            }
+            ExpressionKind::VariableUsage(_) => None,
+        }
     }
 
     fn replace_expression_by_selection(
