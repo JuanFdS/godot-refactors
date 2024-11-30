@@ -333,13 +333,14 @@ mod tests {
 
         let program = GDScriptParser::parse_to_program(input);
 
-        let new_program = program.inline_variable((1, 5), (1, 5)).0;
+        let (new_program, lines_to_select) = program.inline_variable((1, 5), (1, 5));
 
         let expected = text_block_fnl! {
           "func foo():"
           "\t4 + 2"
         };
         assert_program_prints_to(new_program, expected);
+        assert_eq!(lines_to_select, vec![]);
     }
 
     #[test]
@@ -522,9 +523,10 @@ func foo():
             )]),
         );
 
-        let new_program = program.inline_variable((1, 5), (1, 8)).0;
+        let (new_program, lines_to_select) = program.inline_variable((1, 5), (1, 8));
 
         assert_program_prints_to(new_program, "func foo():\n\t2 + 3\n");
+        assert_eq!(lines_to_select, vec![]);
     }
 
     #[test]
@@ -532,9 +534,10 @@ func foo():
         let input = "func bar():\n\tpass\nfunc foo():\n\tvar suma = 2 + 3\n\tsuma\n";
         let program = GDScriptParser::parse_to_program(input);
 
-        let new_program = program.inline_variable((3, 5), (3, 8)).0;
+        let (new_program, lines_to_select) = program.inline_variable((3, 5), (3, 8));
 
         assert_program_prints_to(new_program, "func bar():\n\tpass\nfunc foo():\n\t2 + 3\n");
+        assert_eq!(lines_to_select, vec![]);
     }
     #[test]
     fn test_program_inline_variable_inside_return() {
@@ -557,9 +560,10 @@ func foo():
             )]),
         );
 
-        let new_program = program.inline_variable((1, 5), (1, 8)).0;
+        let (new_program, lines_to_select) = program.inline_variable((1, 5), (1, 8));
 
         assert_program_prints_to(new_program, "func foo():\n\treturn 2 + 3\n");
+        assert_eq!(lines_to_select, vec![]);
     }
 
     #[test]
