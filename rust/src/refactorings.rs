@@ -145,8 +145,7 @@ impl<'a> Program {
             for (idx, statement) in statements.clone().iter().enumerate() {
                 if idx == statement_idx {
                 } else {
-            
-                    match statement.clone().kind {
+                    Some(match statement.clone().kind {
                         StatementKind::Pass
                         | StatementKind::Unknown(_)
                         | StatementKind::Return(None) => new_statements.push(statement.clone()),
@@ -161,7 +160,7 @@ impl<'a> Program {
                                         StatementKind::VarDeclaration(var_name, new_expr),
                                     ))
                                 }
-                                None => new_statements.push(statement.clone()),
+                                None => break,
                             }
                         }
                         StatementKind::Expression(expression) => match expression.replace_variable_usage(
@@ -170,7 +169,7 @@ impl<'a> Program {
                         ) {
                             Some((new_expr, _lines_to_select)) => new_statements
                                 .push(Statement::new(None, StatementKind::Expression(new_expr))),
-                            None => new_statements.push(statement.clone()),
+                            None => break,
                         },
                         StatementKind::Return(Some(expression)) => match expression.replace_variable_usage(
                             variable_name.to_string(),
@@ -178,9 +177,9 @@ impl<'a> Program {
                         ) {
                             Some((new_expr, _lines_to_select)) => new_statements
                                 .push(Statement::new(None, StatementKind::Return(Some(new_expr)))),
-                            None => new_statements.push(statement.clone()),
+                            None => break,
                         },
-                    }
+                    }).or_else(|| Some(new_statements.push(statement.clone())));
                 }
             }
             Declaration::new(
