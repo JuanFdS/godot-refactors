@@ -143,37 +143,32 @@ impl<'a> Program {
             let mut new_statements: Vec<Statement> = vec![];
 
             for (idx, statement) in statements.clone().iter().enumerate() {
-                if idx == statement_idx {
-                } else {
+                if idx != statement_idx {
                     let new_statement = match statement.clone().kind {
                         StatementKind::Pass
                         | StatementKind::Unknown(_)
                         | StatementKind::Return(None) => None,
-                        StatementKind::VarDeclaration(var_name, expression) => {
-                            match expression.replace_variable_usage(
+                        StatementKind::VarDeclaration(var_name, expression) =>
+                            expression.replace_variable_usage(
                                 variable_name.to_string(),
                                 expr_to_inline.clone(),
-                            ) {
-                                Some((new_expr, _lines_to_select)) =>
-                                    Some(Statement::new(None,StatementKind::VarDeclaration(var_name, new_expr))),
-                                None => None,
-                            }
-                        }
-                        StatementKind::Expression(expression) => match expression.replace_variable_usage(
-                            variable_name.to_string(),
-                            expr_to_inline.clone(),
-                        ) {
-                            Some((new_expr, _lines_to_select)) => Some(Statement::new(None, StatementKind::Expression(new_expr))),
-                            None => None,
-                        },
-                        StatementKind::Return(Some(expression)) => match expression.replace_variable_usage(
-                            variable_name.to_string(),
-                            expr_to_inline.clone(),
-                        ) {
-                            Some((new_expr, _lines_to_select)) => Some(Statement::new(None, StatementKind::Return(Some(new_expr)))),
-                            None => None,
-                        },
-                    }.unwrap_or(statement.clone());
+                            ).map(|(new_expr, _lines_to_select)|
+                                StatementKind::VarDeclaration(var_name, new_expr)),
+                        StatementKind::Expression(expression) =>
+                            expression.replace_variable_usage(
+                                variable_name.to_string(),
+                                expr_to_inline.clone(),
+                            ).map(|(new_expr, _lines_to_select)|
+                                StatementKind::Expression(new_expr)),
+                        StatementKind::Return(Some(expression)) =>
+                            expression.replace_variable_usage(
+                                variable_name.to_string(),
+                                expr_to_inline.clone(),
+                            ).map(|(new_expr, _lines_to_select)|
+                                StatementKind::Return(Some(new_expr))),
+                    }.map(|statement_kind| statement_kind.to_statement(None))
+                     .unwrap_or(statement.clone());
+
                     new_statements.push(new_statement);
                 }
             }
