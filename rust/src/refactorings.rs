@@ -145,41 +145,36 @@ impl<'a> Program {
             for (idx, statement) in statements.clone().iter().enumerate() {
                 if idx == statement_idx {
                 } else {
-                    Some(match statement.clone().kind {
+                    let new_statement = match statement.clone().kind {
                         StatementKind::Pass
                         | StatementKind::Unknown(_)
-                        | StatementKind::Return(None) => new_statements.push(statement.clone()),
+                        | StatementKind::Return(None) => None,
                         StatementKind::VarDeclaration(var_name, expression) => {
                             match expression.replace_variable_usage(
                                 variable_name.to_string(),
                                 expr_to_inline.clone(),
                             ) {
-                                Some((new_expr, _lines_to_select)) => {
-                                    new_statements.push(Statement::new(
-                                        None,
-                                        StatementKind::VarDeclaration(var_name, new_expr),
-                                    ))
-                                }
-                                None => break,
+                                Some((new_expr, _lines_to_select)) =>
+                                    Some(Statement::new(None,StatementKind::VarDeclaration(var_name, new_expr))),
+                                None => None,
                             }
                         }
                         StatementKind::Expression(expression) => match expression.replace_variable_usage(
                             variable_name.to_string(),
                             expr_to_inline.clone(),
                         ) {
-                            Some((new_expr, _lines_to_select)) => new_statements
-                                .push(Statement::new(None, StatementKind::Expression(new_expr))),
-                            None => break,
+                            Some((new_expr, _lines_to_select)) => Some(Statement::new(None, StatementKind::Expression(new_expr))),
+                            None => None,
                         },
                         StatementKind::Return(Some(expression)) => match expression.replace_variable_usage(
                             variable_name.to_string(),
                             expr_to_inline.clone(),
                         ) {
-                            Some((new_expr, _lines_to_select)) => new_statements
-                                .push(Statement::new(None, StatementKind::Return(Some(new_expr)))),
-                            None => break,
+                            Some((new_expr, _lines_to_select)) => Some(Statement::new(None, StatementKind::Return(Some(new_expr)))),
+                            None => None,
                         },
-                    }).or_else(|| Some(new_statements.push(statement.clone())));
+                    }.unwrap_or(statement.clone());
+                    new_statements.push(new_statement);
                 }
             }
             Declaration::new(
