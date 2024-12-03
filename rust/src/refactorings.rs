@@ -6,7 +6,15 @@ use std::ops::Range;
 pub trait Replace<T: Clone> {
     fn replace_mut(&mut self, index: usize, f: impl Fn(&T) -> T) -> T;
 
+    fn replace_mut_by(&mut self, index: usize, new: T) -> T {
+        self.replace_mut(index, |_| new.clone())
+    }
+
     fn replace(&self, index: usize, f: impl Fn(&T) -> T) -> Self;
+
+    fn replace_by(&self, index: usize, new: T) -> Self where Self: Sized {
+        self.replace(index, |_| new.clone())
+    }
 }
 
 impl<T: Clone> Replace<T> for Vec<T> {
@@ -81,15 +89,6 @@ impl<'a> Program {
             })
     }
 
-    fn transform_declaration(
-        &self,
-        index: usize,
-        f: impl Fn(&Declaration) -> Declaration,
-    ) -> Program {
-        let new_declarations = self.declarations.replace(index, f);
-        self.with_declarations(new_declarations)
-    }
-
     pub fn get_ocurrences_of_variable(
         &self,
         start_line_column: LineCol,
@@ -104,85 +103,79 @@ impl<'a> Program {
         vec![]
     }
 
+    pub fn attempt_inline_variable(
+        &self,
+        selected_range: SelectionRange
+    ) -> Option<(Program, Vec<SelectionRange>)> {
+        let (declaration_idx, function) = self.find_function_declaration_by_selection_range(&selected_range)?;
+        let (f_name, f_type, f_params, statements) = match &function.kind {
+            DeclarationKind::Function {
+                name: f_name,
+                return_type: f_type,
+                parameters: f_params,
+                statements: s,
+            } => (f_name, f_type, f_params, s),
+            _ => return None,
+        };
+        let statement_idx = statements
+            .iter()
+            .position(|statement| statement.contains_range(&selected_range))?;
+
+        let (variable_name, expr_to_inline) = match &statements.get(statement_idx)?.kind
+        {
+            StatementKind::VarDeclaration(var_name, expression) => (var_name, expression),
+            _ => return None
+        };
+
+        let mut new_statements: Vec<Statement> = statements.clone();
+        for (idx, statement) in statements.clone().iter().enumerate() {
+            if let Some(updated_statement_kind) = match &statement.kind {
+                StatementKind::Pass
+                | StatementKind::Unknown(_)
+                | StatementKind::Return(None) => None,
+                StatementKind::VarDeclaration(var_name, expression) =>
+                    expression.replace_variable_usage(
+                        variable_name.to_string(),
+                        expr_to_inline.clone(),
+                    ).map(|(new_expr, _lines_to_select)|
+                        StatementKind::VarDeclaration(var_name.to_string(), new_expr)),
+                StatementKind::Expression(expression) =>
+                    expression.replace_variable_usage(
+                        variable_name.to_string(),
+                        expr_to_inline.clone(),
+                    ).map(|(new_expr, _lines_to_select)|
+                        StatementKind::Expression(new_expr)),
+                StatementKind::Return(Some(expression)) =>
+                    expression.replace_variable_usage(
+                        variable_name.to_string(),
+                        expr_to_inline.clone(),
+                    ).map(|(new_expr, _lines_to_select)|
+                        StatementKind::Return(Some(new_expr))),
+            } {
+                new_statements.replace_mut_by(idx,updated_statement_kind.to_statement(None));
+            }
+        };
+        new_statements.remove(statement_idx);
+
+        let new_declaration = DeclarationKind::Function {
+                name: f_name.into(),
+                return_type: f_type.clone(),
+                parameters: f_params.to_vec(),
+                statements: new_statements,
+            }.to_declaration(None);
+        let new_program = self.with_declarations(
+            self.declarations.replace_by(declaration_idx, new_declaration)
+        );
+        Some((new_program, vec![]))
+    }
+
     pub fn inline_variable(
         &self,
         start_line_column: LineCol,
         end_line_column: LineCol,
     ) -> (Program, Vec<Range<LineCol>>) {
-        let selected_range = start_line_column..end_line_column;
-        let (declaration_idx, _declaration) =
-            match self.find_function_declaration_by_selection_range(&selected_range) {
-                Some(result) => result,
-                None => return (self.clone(), vec![]),
-            };
-        let new_program = self.transform_declaration(declaration_idx, |function| {
-            let (f_name, f_type, f_params, statements) = match &function.kind {
-                DeclarationKind::Function {
-                    name: f_name,
-                    return_type: f_type,
-                    parameters: f_params,
-                    statements: s,
-                } => (f_name, f_type, f_params, s),
-                _ => return function.clone(),
-            };
-            let maybe_statement_idx = statements
-                .iter()
-                .position(|statement| statement.contains_range(&selected_range));
-            if maybe_statement_idx.is_none() {
-                return function.clone();
-            }
-            let statement_idx = maybe_statement_idx.unwrap();
-            let (variable_name, expr_to_inline) = match &statements.get(statement_idx).unwrap().kind
-            {
-                StatementKind::Pass
-                | StatementKind::Unknown(_)
-                | StatementKind::Expression(_)
-                | StatementKind::Return(_) => return function.clone(),
-                StatementKind::VarDeclaration(var_name, expression) => (var_name, expression),
-            };
-            let mut new_statements: Vec<Statement> = vec![];
-
-            for (idx, statement) in statements.clone().iter().enumerate() {
-                if idx != statement_idx {
-                    let new_statement = match statement.clone().kind {
-                        StatementKind::Pass
-                        | StatementKind::Unknown(_)
-                        | StatementKind::Return(None) => None,
-                        StatementKind::VarDeclaration(var_name, expression) =>
-                            expression.replace_variable_usage(
-                                variable_name.to_string(),
-                                expr_to_inline.clone(),
-                            ).map(|(new_expr, _lines_to_select)|
-                                StatementKind::VarDeclaration(var_name, new_expr)),
-                        StatementKind::Expression(expression) =>
-                            expression.replace_variable_usage(
-                                variable_name.to_string(),
-                                expr_to_inline.clone(),
-                            ).map(|(new_expr, _lines_to_select)|
-                                StatementKind::Expression(new_expr)),
-                        StatementKind::Return(Some(expression)) =>
-                            expression.replace_variable_usage(
-                                variable_name.to_string(),
-                                expr_to_inline.clone(),
-                            ).map(|(new_expr, _lines_to_select)|
-                                StatementKind::Return(Some(new_expr))),
-                    }.map(|statement_kind| statement_kind.to_statement(None))
-                     .unwrap_or(statement.clone());
-
-                    new_statements.push(new_statement);
-                }
-            }
-            Declaration::new(
-                None,
-                DeclarationKind::Function {
-                    name: f_name.into(),
-                    return_type: f_type.clone(),
-                    parameters: f_params.to_vec(),
-                    statements: new_statements,
-                },
-            )
-        });
-        (new_program, vec![])
+        self.attempt_inline_variable(start_line_column..end_line_column)
+            .unwrap_or((self.clone(), vec![]))
     }
 
     pub fn extract_variable(
