@@ -129,31 +129,9 @@ impl<'a> Program {
 
         let mut new_statements: Vec<Statement> = statements.clone();
         for (idx, statement) in statements.clone().iter().enumerate() {
-            if let Some(updated_statement_kind) = match &statement.kind {
-                StatementKind::Pass
-                | StatementKind::Unknown(_)
-                | StatementKind::Return(None) => None,
-                StatementKind::VarDeclaration(var_name, expression) =>
-                    expression.replace_variable_usage(
-                        variable_name.to_string(),
-                        expr_to_inline.clone(),
-                    ).map(|(new_expr, _lines_to_select)|
-                        StatementKind::VarDeclaration(var_name.to_string(), new_expr)),
-                StatementKind::Expression(expression) =>
-                    expression.replace_variable_usage(
-                        variable_name.to_string(),
-                        expr_to_inline.clone(),
-                    ).map(|(new_expr, _lines_to_select)|
-                        StatementKind::Expression(new_expr)),
-                StatementKind::Return(Some(expression)) =>
-                    expression.replace_variable_usage(
-                        variable_name.to_string(),
-                        expr_to_inline.clone(),
-                    ).map(|(new_expr, _lines_to_select)|
-                        StatementKind::Return(Some(new_expr))),
-            } {
-                new_statements.replace_mut_by(idx,updated_statement_kind.to_statement(None));
-            }
+            if let Some(updated_statement) = &statement.replace_variable_usage(variable_name.to_string(), expr_to_inline.clone()) {
+                new_statements.replace_mut_by(idx,updated_statement.clone());
+            };
         };
         new_statements.remove(statement_idx);
 
@@ -543,6 +521,32 @@ impl<'a> Statement {
 
     pub fn without_pairs(&self) -> Statement {
         Statement::new(None, self.kind.without_pairs())
+    }
+
+    pub fn replace_variable_usage(&self, variable_name: String, expr_to_inline: Expression) -> Option<Statement> {
+        match &self.kind {
+            StatementKind::Pass
+            | StatementKind::Unknown(_)
+            | StatementKind::Return(None) => None,
+            StatementKind::VarDeclaration(var_name, expression) =>
+                expression.replace_variable_usage(
+                    variable_name.to_string(),
+                    expr_to_inline.clone(),
+                ).map(|(new_expr, _lines_to_select)|
+                    StatementKind::VarDeclaration(var_name.to_string(), new_expr)),
+            StatementKind::Expression(expression) =>
+                expression.replace_variable_usage(
+                    variable_name.to_string(),
+                    expr_to_inline.clone(),
+                ).map(|(new_expr, _lines_to_select)|
+                    StatementKind::Expression(new_expr)),
+            StatementKind::Return(Some(expression)) =>
+                expression.replace_variable_usage(
+                    variable_name.to_string(),
+                    expr_to_inline.clone(),
+                ).map(|(new_expr, _lines_to_select)|
+                    StatementKind::Return(Some(new_expr))),
+        }.map(|statement_kind| statement_kind.to_statement(None))
     }
 
     pub fn replace_expression_by_selection(
