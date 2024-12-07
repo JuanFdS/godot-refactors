@@ -118,6 +118,66 @@ func extract_variable():
 	code_edit.text = new_text
 	select_ranges(selection)
 
+func _evaluation_result_as_text(code_to_evaluate: String):
+	var expression := Expression.new()
+
+	var error = expression.parse(code_to_evaluate)
+	if error != OK:
+		print(expression.get_error_text())
+		return
+
+	var selected_nodes = EditorInterface.get_selection().get_selected_nodes()
+	var current_script = EditorInterface.get_script_editor().get_current_script()
+	var context = null
+	if current_script.is_tool() \
+		and not selected_nodes.is_empty() \
+		and selected_nodes.front().get_script() == current_script:
+			context = selected_nodes.front()
+
+	var result = expression.execute([], context)
+
+	if expression.has_execute_failed():
+		print(expression.get_error_text())
+		return
+
+	var new_text: String
+	if result is String:
+		new_text = "\"%s\"" % result
+	else:
+		new_text = str(result)
+	return new_text
+
+func evaluate_in_place():
+	var code_edit = _code_edit()
+	var text = code_edit.get_selected_text()
+	var result = _evaluation_result_as_text(text)
+	if result:
+		code_edit.insert_text_at_caret(result)
+
+func evaluate_and_print():
+	var code_edit = _code_edit()
+	var text = code_edit.get_selected_text()
+	var result = _evaluation_result_as_text(text)
+	if not result:
+		return
+
+	var evaluation_prefix: String = " #=> "
+	var line = code_edit.get_selection_to_line()
+	var line_previous_text: String = code_edit.get_line(line)
+	var line_column_end = line_previous_text.length()
+	var column: int
+	if evaluation_prefix in line_previous_text:
+		column = line_previous_text.find(evaluation_prefix)
+		code_edit.remove_text(
+			line, column,
+			line, line_column_end
+		)
+	else:
+		column = line_column_end
+	var new_evaluation: String = "%s %s" % [evaluation_prefix, result]
+	code_edit.insert_text(new_evaluation, line, column)
+	code_edit.grab_focus()
+
 func inline_variable():
 	var code_edit = _code_edit()
 	var previous_column = code_edit.get_caret_column()
